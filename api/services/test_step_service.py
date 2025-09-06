@@ -12,6 +12,7 @@ import os
 import json
 
 from generators.test_step_generator import TestStepGenerator
+from generators.test_modification_exporter import TestModificationExporter
 from models.impact_models import ImpactAnalysisReport
 from models.test_models import TestCase
 from templates.step_templates import GeneratedTestStep
@@ -24,6 +25,7 @@ class TestStepService:
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.logger = logger or logging.getLogger(__name__)
         self.generator = TestStepGenerator(self.logger)
+        self.exporter = TestModificationExporter(output_dir="output_files", logger=self.logger)
         self.output_dir = "output_files"
         
     def generate_test_steps(self, impact_report: ImpactAnalysisReport, 
@@ -88,43 +90,84 @@ class TestStepService:
             raise TestStepGenerationError(f"Test step generation failed: {str(e)}")
     
     def save_generated_steps(self, generated_steps_data: Dict[str, Any], 
+                           qtest_file: Optional[str] = None,
                            filename: Optional[str] = None) -> str:
         """
-        Save generated test steps to output_files directory
+        Save generated test steps as Excel file using TestModificationExporter
         
         Args:
             generated_steps_data: Generated steps data to save
+            qtest_file: Path to original QTEST file (required for Excel generation)
             filename: Optional custom filename
             
         Returns:
-            Path to saved file
+            Path to saved Excel file
         """
         try:
-            # Ensure output directory exists
-            os.makedirs(self.output_dir, exist_ok=True)
+            # Extract generated steps from the data
+            generated_steps_list = generated_steps_data.get("generated_steps", [])
+            generation_mode = generated_steps_data.get("generation_mode", "delta")
             
-            # Generate filename if not provided
-            if not filename:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                mode = generated_steps_data.get("generation_mode", "unknown")
-                filename = f"generated_test_steps_{mode}_{timestamp}.json"
+            if not generated_steps_list:
+                self.logger.warning("No generated steps found in data")
+                return ""
             
-            # Ensure .json extension
-            if not filename.endswith('.json'):
-                filename = f"{filename}.json"
+            # Convert serialized steps back to GeneratedTestStep objects
+            from templates.step_templates import GeneratedTestStep
             
-            file_path = os.path.join(self.output_dir, filename)
+            steps_objects = []
+            for step_data in generated_steps_list:
+                step = GeneratedTestStep(
+                    step_number=step_data.get('step_number', 1),
+                    description=step_data.get('action_description', ''),
+                    expected_result=step_data.get('expected_result', ''),
+                    action=step_data.get('action', 'ADD'),
+                    notes=step_data.get('notes', '')
+                )
+                # Add any additional attributes
+                if 'field_name' in step_data:
+                    step.field_name = step_data['field_name']
+                if 'change_type' in step_data:
+                    step.change_type = step_data['change_type']
+                steps_objects.append(step)
             
-            # Save to file
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(generated_steps_data, f, indent=2, ensure_ascii=False)
+            self.logger.info(f"Converting {len(steps_objects)} steps to Excel format")
             
-            self.logger.info(f"Saved generated test steps to: {file_path}")
-            return file_path
+            # Use TestModificationExporter to generate Excel file
+            if qtest_file and os.path.exists(qtest_file):
+                if generation_mode == "delta":
+                    # For delta mode, export with original test data
+                    output_file = self.exporter.export_with_original_test_data(steps_objects, qtest_file)
+                    # Add instructions sheet for delta files
+                    if output_file:
+                        self.exporter.create_instructions_sheet(output_file)
+                else:
+                    # For in-place mode, copy and modify original
+                    output_file = self.exporter.copy_and_modify_original(steps_objects, qtest_file)
+                    
+                self.logger.info(f"Generated Excel file: {output_file}")
+                return output_file
+            else:
+                # Fallback: create basic Excel export without original test data
+                self.logger.warning(f"QTEST file not found: {qtest_file}. Creating basic export.")
+                
+                # Create basic test case data structure
+                base_test_case_data = {
+                    'name': 'Generated Test Case',
+                    'id': 'GENERATED_001',
+                    'description': 'Auto-generated test case from STTM impact analysis',
+                    'precondition': 'System setup completed'
+                }
+                
+                suffix = f"{generation_mode}_mode"
+                output_file = self.exporter.export_to_excel(steps_objects, base_test_case_data, suffix)
+                
+                self.logger.info(f"Generated basic Excel file: {output_file}")
+                return output_file
             
         except Exception as e:
-            self.logger.error(f"Failed to save generated steps: {str(e)}", exc_info=True)
-            raise TestStepGenerationError(f"Failed to save generated steps: {str(e)}")
+            self.logger.error(f"Failed to save generated steps as Excel: {str(e)}", exc_info=True)
+            raise TestStepGenerationError(f"Failed to save generated steps as Excel: {str(e)}")
     
     def _serialize_generated_step(self, step: GeneratedTestStep, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Serialize a GeneratedTestStep to dictionary"""

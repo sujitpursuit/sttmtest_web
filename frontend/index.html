@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STTM Impact Analysis Tool</title>
+    
+    <!-- Custom JavaScript (must load before Alpine.js) -->
+    <script src="/frontend/js/app.js"></script>
+    
+    <!-- Alpine.js CDN -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/frontend/css/styles.css">
+</head>
+<body>
+    <div id="app" x-data="sttmApp()" x-init="init()">
+        
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <h1>🔍 STTM Impact Analysis Tool</h1>
+                <p>Upload, validate, analyze, and generate test steps</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container">
+            
+            <!-- Progress Indicator -->
+            <div class="progress-section">
+                <div class="progress-bar">
+                    <div class="progress-fill" :style="`width: ${progressPercentage}%`"></div>
+                </div>
+                <div class="progress-steps">
+                    <span :class="{'step-active': currentStep >= 1, 'step-completed': currentStep > 1}">
+                        📁 Upload
+                    </span>
+                    <span :class="{'step-active': currentStep >= 2, 'step-completed': currentStep > 2}">
+                        ✅ Validate
+                    </span>
+                    <span :class="{'step-active': currentStep >= 3, 'step-completed': currentStep > 3}">
+                        📊 Analyze
+                    </span>
+                    <span :class="{'step-active': currentStep >= 4, 'step-completed': currentStep > 4}">
+                        🧪 Generate
+                    </span>
+                </div>
+            </div>
+
+            <!-- File Upload Section -->
+            <section class="upload-section">
+                <h2>📁 Step 1: Upload Files</h2>
+                
+                <!-- STTM File Upload -->
+                <div class="file-upload-container">
+                    <h3>STTM JSON File</h3>
+                    <div class="file-drop-zone" 
+                         :class="{'dragover': isDragOver.sttm, 'uploaded': files.sttm}"
+                         @dragover.prevent="isDragOver.sttm = true"
+                         @dragleave="isDragOver.sttm = false"
+                         @drop.prevent="handleFileDrop($event, 'sttm')"
+                         @click="$refs.sttmInput.click()">
+                        
+                        <div x-show="!files.sttm" class="drop-zone-content">
+                            <div class="upload-icon">📄</div>
+                            <p class="drop-text">Drop STTM JSON file here or <span class="click-text">click to browse</span></p>
+                            <p class="file-hint">Accepts: .json files</p>
+                        </div>
+                        
+                        <div x-show="files.sttm" class="file-info">
+                            <div class="file-icon">✅</div>
+                            <div class="file-details">
+                                <p class="file-name" x-text="files.sttm?.name"></p>
+                                <p class="file-size" x-text="formatFileSize(files.sttm?.size)"></p>
+                            </div>
+                            <button @click.stop="removeFile('sttm')" class="remove-file">❌</button>
+                        </div>
+                        
+                        <input type="file" 
+                               x-ref="sttmInput" 
+                               accept=".json" 
+                               @change="handleFileSelect($event, 'sttm')"
+                               style="display: none;">
+                    </div>
+                    
+                    <div x-show="validationResults.sttm" class="validation-result">
+                        <div :class="validationResults.sttm && validationResults.sttm.valid ? 'validation-success' : 'validation-error'">
+                            <span x-text="validationResults.sttm ? validationResults.sttm.message : ''"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QTest File Upload -->
+                <div class="file-upload-container">
+                    <h3>QTest Excel File</h3>
+                    <div class="file-drop-zone" 
+                         :class="{'dragover': isDragOver.qtest, 'uploaded': files.qtest}"
+                         @dragover.prevent="isDragOver.qtest = true"
+                         @dragleave="isDragOver.qtest = false"
+                         @drop.prevent="handleFileDrop($event, 'qtest')"
+                         @click="$refs.qtestInput.click()">
+                        
+                        <div x-show="!files.qtest" class="drop-zone-content">
+                            <div class="upload-icon">📊</div>
+                            <p class="drop-text">Drop QTest Excel file here or <span class="click-text">click to browse</span></p>
+                            <p class="file-hint">Accepts: .xlsx, .xls files</p>
+                        </div>
+                        
+                        <div x-show="files.qtest" class="file-info">
+                            <div class="file-icon">✅</div>
+                            <div class="file-details">
+                                <p class="file-name" x-text="files.qtest?.name"></p>
+                                <p class="file-size" x-text="formatFileSize(files.qtest?.size)"></p>
+                            </div>
+                            <button @click.stop="removeFile('qtest')" class="remove-file">❌</button>
+                        </div>
+                        
+                        <input type="file" 
+                               x-ref="qtestInput" 
+                               accept=".xlsx,.xls" 
+                               @change="handleFileSelect($event, 'qtest')"
+                               style="display: none;">
+                    </div>
+                    
+                    <div x-show="validationResults.qtest" class="validation-result">
+                        <div :class="validationResults.qtest && validationResults.qtest.valid ? 'validation-success' : 'validation-error'">
+                            <span x-text="validationResults.qtest ? validationResults.qtest.message : ''"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Action Buttons Section -->
+            <section class="actions-section">
+                
+                <!-- Validate Files Button -->
+                <div class="action-group">
+                    <button @click="validateFiles()" 
+                            :disabled="!canValidateFiles() || workflow.filesValidated" 
+                            :class="{
+                                'btn-primary': canValidateFiles() && !workflow.filesValidated, 
+                                'btn-disabled': !canValidateFiles() || workflow.filesValidated,
+                                'btn-success': workflow.filesValidated
+                            }"
+                            class="btn btn-large">
+                        <span x-show="!isLoading.validation && !workflow.filesValidated">✅ Validate Files</span>
+                        <span x-show="isLoading.validation">⏳ Validating...</span>
+                        <span x-show="workflow.filesValidated && !isLoading.validation">✅ Files Validated</span>
+                    </button>
+                    <p class="action-hint" x-show="!canValidateFiles() && !workflow.filesValidated">
+                        Please upload both STTM JSON and QTest Excel files
+                    </p>
+                </div>
+
+                <!-- Analyze Impact Button -->
+                <div class="action-group" x-show="workflow.filesValidated">
+                    <button @click="analyzeImpact()" 
+                            :disabled="isLoading.analysis || workflow.impactAnalyzed" 
+                            :class="{
+                                'btn-primary': !isLoading.analysis && !workflow.impactAnalyzed,
+                                'btn-disabled': isLoading.analysis,
+                                'btn-success': workflow.impactAnalyzed
+                            }"
+                            class="btn btn-large">
+                        <span x-show="!isLoading.analysis && !workflow.impactAnalyzed">📊 Analyze Impact</span>
+                        <span x-show="isLoading.analysis">⏳ Analyzing...</span>
+                        <span x-show="workflow.impactAnalyzed && !isLoading.analysis">📊 Impact Analyzed</span>
+                    </button>
+                    <p class="action-hint" x-show="!workflow.impactAnalyzed">
+                        Analyze the impact of STTM changes on QTest cases
+                    </p>
+                </div>
+                
+                <!-- Test Step Generation Buttons -->
+                <div class="action-group" x-show="workflow.impactAnalyzed">
+                    <div class="btn-group">
+                        <button @click="generateTestSteps('delta')" 
+                                :disabled="isLoading.generation || workflow.deltaGenerated"
+                                :class="{
+                                    'btn-primary': !isLoading.generation && !workflow.deltaGenerated,
+                                    'btn-disabled': isLoading.generation,
+                                    'btn-success': workflow.deltaGenerated
+                                }"
+                                class="btn">
+                            <span x-show="!isLoading.generation && !workflow.deltaGenerated">🔄 Generate Delta QTest</span>
+                            <span x-show="isLoading.generation && generationType === 'delta'">⏳ Generating...</span>
+                            <span x-show="workflow.deltaGenerated && !isLoading.generation">✅ Delta Generated</span>
+                        </button>
+                        
+                        <button @click="generateTestSteps('in-place')" 
+                                :disabled="!workflow.deltaGenerated || isLoading.generation || workflow.inPlaceGenerated"
+                                :class="{
+                                    'btn-primary': workflow.deltaGenerated && !workflow.inPlaceGenerated && !isLoading.generation,
+                                    'btn-disabled': !workflow.deltaGenerated || isLoading.generation,
+                                    'btn-success': workflow.inPlaceGenerated
+                                }"
+                                class="btn">
+                            <span x-show="!isLoading.generation && !workflow.inPlaceGenerated">📝 Generate In-Place QTest</span>
+                            <span x-show="isLoading.generation && generationType === 'in-place'">⏳ Generating...</span>
+                            <span x-show="workflow.inPlaceGenerated && !isLoading.generation">✅ In-Place Generated</span>
+                        </button>
+                    </div>
+                    <p class="action-hint" x-show="!workflow.deltaGenerated">
+                        Generate delta test steps first (required before in-place generation)
+                    </p>
+                </div>
+                
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" x-show="analysisResult">
+                <h2>📊 Analysis Results</h2>
+                
+                <!-- Summary Cards -->
+                <div class="results-grid" x-show="analysisResult">
+                    <div class="result-card">
+                        <div class="card-icon">📈</div>
+                        <div class="card-content">
+                            <h3>Impact Summary</h3>
+                            <p class="card-value" x-text="getAnalysisSummary()"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="result-card" x-show="analysisResult && analysisResult.report_links">
+                        <div class="card-icon">📄</div>
+                        <div class="card-content">
+                            <h3>Generated Reports</h3>
+                            <div class="report-links">
+                                <a :href="analysisResult && analysisResult.report_links && analysisResult.report_links.html_url ? analysisResult.report_links.html_url : ''" 
+                                   target="_blank" 
+                                   class="report-link"
+                                   x-show="analysisResult && analysisResult.report_links && analysisResult.report_links.html_url">
+                                    🌐 View HTML Report
+                                </a>
+                                <button @click="downloadJSON()" 
+                                        class="btn btn-secondary"
+                                        x-show="analysisResult && analysisResult.report_links && analysisResult.report_links.json_url">
+                                    📥 Download JSON Report
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="result-card" x-show="analysisResult && analysisResult.summary">
+                        <div class="card-icon">📊</div>
+                        <div class="card-content">
+                            <h3>Statistics</h3>
+                            <div class="stats-list">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total STTM Changes:</span>
+                                    <span class="stat-value" x-text="analysisResult && analysisResult.summary ? (analysisResult.summary.total_sttm_changes || 0) : 0"></span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Test Cases Analyzed:</span>
+                                    <span class="stat-value" x-text="analysisResult && analysisResult.summary ? (analysisResult.summary.total_test_cases || 0) : 0"></span>
+                                </div>
+                                <div class="stat-item" x-show="analysisResult && analysisResult.summary && analysisResult.summary.critical_impacts !== undefined">
+                                    <span class="stat-label">Critical:</span>
+                                    <span class="stat-value critical" x-text="analysisResult && analysisResult.summary ? (analysisResult.summary.critical_impacts || 0) : 0"></span>
+                                </div>
+                                <div class="stat-item" x-show="analysisResult && analysisResult.summary && analysisResult.summary.high_impacts !== undefined">
+                                    <span class="stat-label">High:</span>
+                                    <span class="stat-value high" x-text="analysisResult && analysisResult.summary ? (analysisResult.summary.high_impacts || 0) : 0"></span>
+                                </div>
+                                <div class="stat-item" x-show="analysisResult && analysisResult.summary && analysisResult.summary.priority_impacts !== undefined">
+                                    <span class="stat-label">Priority Impacts:</span>
+                                    <span class="stat-value priority" x-text="analysisResult && analysisResult.summary ? (analysisResult.summary.priority_impacts || 0) : 0"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Generated Files List -->
+                <div class="generated-files" x-show="generatedFiles.length > 0">
+                    <h3>📁 Generated Test Files</h3>
+                    <div class="file-list">
+                        <template x-for="file in generatedFiles" :key="file.file">
+                            <div class="generated-file-item">
+                                <span class="file-type" x-text="file.mode === 'delta' ? '🔄 Delta:' : '📝 In-Place:'"></span>
+                                <span class="file-name" x-text="file.file"></span>
+                                <a :href="`/output_files/${file.file}`" 
+                                   download 
+                                   class="download-link">
+                                    📥 Download
+                                </a>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Error Display -->
+            <div x-show="errorMessage" class="error-section">
+                <div class="error-box">
+                    <span class="error-icon">⚠️</span>
+                    <span x-text="errorMessage"></span>
+                    <button @click="clearError()" class="error-close">✕</button>
+                </div>
+            </div>
+
+            <!-- Success Display -->
+            <div x-show="successMessage" class="success-section">
+                <div class="success-box">
+                    <span class="success-icon">🎉</span>
+                    <span x-text="successMessage"></span>
+                    <button @click="clearSuccess()" class="success-close">✕</button>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <p>&copy; 2025 STTM Impact Analysis Tool - Phase 1: File Upload & Validation</p>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

@@ -103,8 +103,8 @@ class AnalysisService:
                 },
                 "json_report": json_data,
                 "report_links": {
-                    "html_url": f"/api/reports/{Path(files_generated.get('html_report', '')).name}" if files_generated.get('html_report') else None,
-                    "json_url": f"/api/reports/{Path(files_generated.get('json_report', '')).name}" if files_generated.get('json_report') else None,
+                    "html_url": f"/reports/{Path(files_generated.get('html_report', '')).name}" if files_generated.get('html_report') else None,
+                    "json_url": f"/reports/{Path(files_generated.get('json_report', '')).name}" if files_generated.get('json_report') else None,
                     "html_file": files_generated.get('html_report'),
                     "json_file": files_generated.get('json_report')
                 },

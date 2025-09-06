@@ -3,13 +3,16 @@ FastAPI Main Application - STTM Impact Analysis API
 Stage 1: Foundation & File Management
 """
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 import logging
 import sys
 from pathlib import Path
 from typing import Dict, Any
+import shutil
+import json
 
 # Add parent directory to path to import existing modules
 sys.path.append(str(Path(__file__).parent.parent))
@@ -74,6 +77,40 @@ response_optimizer = ResponseOptimizer(logger)
 logging_middleware = EnhancedRequestLoggingMiddleware(app=None, logger=logger)
 app.add_middleware(EnhancedRequestLoggingMiddleware)
 
+# Mount static files for frontend
+frontend_path = Path(__file__).parent.parent / "frontend"
+if frontend_path.exists():
+    app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend")
+    logger.info(f"Static files mounted at /frontend from: {frontend_path}")
+else:
+    logger.warning(f"Frontend directory not found: {frontend_path}")
+
+# Serve frontend index.html at root
+@app.get("/")
+async def serve_frontend():
+    """Serve the frontend index.html file at root"""
+    index_path = frontend_path / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not found")
+
+# Mount reports directory for serving generated reports
+reports_path = Path(__file__).parent.parent / "reports"
+if reports_path.exists():
+    app.mount("/reports", StaticFiles(directory=str(reports_path)), name="reports")
+    logger.info(f"Reports directory mounted at /reports from: {reports_path}")
+else:
+    logger.warning(f"Reports directory not found: {reports_path}")
+    
+# Mount output_files directory for serving generated test files
+output_path = Path(__file__).parent.parent / "output_files"
+if output_path.exists():
+    app.mount("/output_files", StaticFiles(directory=str(output_path)), name="output_files")
+    logger.info(f"Output files directory mounted at /output_files from: {output_path}")
+else:
+    logger.warning(f"Output files directory not found: {output_path}")
+
 
 def get_file_service() -> FileService:
     """Dependency for file service"""
@@ -109,6 +146,19 @@ async def health_check():
         version="1.0.0-stage3",
         environment="development"
     )
+
+
+@app.get("/app")
+async def serve_frontend():
+    """Serve the frontend application"""
+    frontend_file = Path(__file__).parent.parent / "frontend" / "index.html"
+    if frontend_file.exists():
+        return FileResponse(
+            path=str(frontend_file),
+            media_type="text/html"
+        )
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not found")
 
 
 @app.get("/api/health")
@@ -217,6 +267,121 @@ async def list_qtest_files(fs: FileService = Depends(get_file_service)):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list QTEST files: {str(e)}"
+        )
+
+
+@app.post("/api/upload-validate/sttm", response_model=ValidationResponse)
+async def upload_and_validate_sttm(
+    file: UploadFile = File(...),
+    fs: FileService = Depends(get_file_service)
+):
+    """Upload and validate a STTM JSON file"""
+    try:
+        # Validate file type
+        if not file.filename.endswith('.json'):
+            raise HTTPException(status_code=400, detail="File must be a JSON file")
+        
+        # Save uploaded file
+        sttm_dir = Path(__file__).parent.parent / "input_files" / "sttm"
+        sttm_dir.mkdir(parents=True, exist_ok=True)
+        
+        file_path = sttm_dir / file.filename
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Validate the file
+        logger.info(f"Validating uploaded STTM file: {file.filename}")
+        
+        # Use file service for basic validation
+        validation_result = fs.validate_sttm_file(file.filename)
+        
+        # Enhanced validation using existing CLI parser
+        if validation_result["valid"]:
+            try:
+                # Use existing CLI parser for thorough validation
+                sttm_doc = parse_sttm_file(str(file_path), logger)
+                
+                # Add parser-specific validation info
+                validation_result["structure"]["estimated_tabs"] = sttm_doc.total_tabs
+                validation_result["structure"]["estimated_changes"] = sttm_doc.total_changes
+                validation_result["structure"]["has_changed_tabs"] = len(sttm_doc.changed_tabs) > 0
+                
+                logger.info(f"STTM validation successful: {file.filename}")
+                
+            except Exception as parser_error:
+                validation_result["valid"] = False
+                validation_result["errors"].append(f"Parser validation failed: {str(parser_error)}")
+                logger.warning(f"STTM parser validation failed: {parser_error}")
+        
+        return ValidationResponse(**validation_result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"STTM upload/validation error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Upload/validation failed: {str(e)}"
+        )
+
+
+@app.post("/api/upload-validate/qtest", response_model=ValidationResponse)
+async def upload_and_validate_qtest(
+    file: UploadFile = File(...),
+    fs: FileService = Depends(get_file_service)
+):
+    """Upload and validate a QTest Excel file"""
+    try:
+        # Validate file type
+        if not (file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+            raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
+        
+        # Save uploaded file
+        qtest_dir = Path(__file__).parent.parent / "input_files" / "qtest"
+        qtest_dir.mkdir(parents=True, exist_ok=True)
+        
+        file_path = qtest_dir / file.filename
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Validate the file
+        logger.info(f"Validating uploaded QTest file: {file.filename}")
+        
+        # Use file service for basic validation
+        validation_result = fs.validate_qtest_file(file.filename)
+        
+        # Enhanced validation using existing CLI parser
+        if validation_result["valid"]:
+            try:
+                # Use existing CLI parser for thorough validation
+                qtest_doc = parse_qtest_file(str(file_path), logger)
+                
+                # Add parser-specific validation info
+                validation_result["structure"]["estimated_test_cases"] = qtest_doc.total_test_cases
+                validation_result["structure"]["total_test_steps"] = sum(
+                    tc.get_step_count() for tc in qtest_doc.test_cases
+                )
+                validation_result["structure"]["id_pattern"] = qtest_doc.detected_id_pattern
+                validation_result["structure"]["id_format_description"] = qtest_doc.id_format_description
+                
+                logger.info(f"QTest validation successful: {file.filename}")
+                
+            except Exception as parser_error:
+                validation_result["valid"] = False
+                validation_result["errors"].append(f"Parser validation failed: {str(parser_error)}")
+                logger.warning(f"QTest parser validation failed: {parser_error}")
+        
+        return ValidationResponse(**validation_result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"QTest upload/validation error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Upload/validation failed: {str(e)}"
         )
 
 
@@ -500,7 +665,8 @@ async def generate_test_steps(
         if request.save_to_file:
             saved_file_path = test_step_service.save_generated_steps(
                 generation_result, 
-                request.custom_filename
+                qtest_file=qtest_path,
+                filename=request.custom_filename
             )
             
             # Also save to report service for retrieval via report endpoints
