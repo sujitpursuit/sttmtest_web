@@ -1,0 +1,101 @@
+{
+  "success": true,
+  "files_parsed": 2,
+  "sttm_result": {
+    "success": true,
+    "file_type": "STTM",
+    "file_path": "STTM_DIFF.json",
+    "summary": {
+      "total_tabs": 6,
+      "changed_tabs": 3,
+      "unchanged_tabs": 3,
+      "total_changes": 8,
+      "tabs_by_change_type": {
+        "additions_only": 0,
+        "deletions_only": 0,
+        "modifications_only": 1,
+        "mixed": 2
+      }
+    },
+    "details": {
+      "changed_tabs": [
+        "Vendor Inbound DACH VenProxy",
+        "NetSuiteVendorRequestResponsOTV",
+        "VendorInboundVendorProxytoD365"
+      ],
+      "unchanged_tabs": [
+        "VendorInbound-DealerAssociate",
+        "NetSuiteVendorReqRespAssociate",
+        "Vendor Inbound "
+      ],
+      "tabs_with_changes": [
+        "Vendor Inbound DACH VenProxy",
+        "NetSuiteVendorRequestResponsOTV",
+        "VendorInboundVendorProxytoD365"
+      ]
+    },
+    "tab_details": [
+      {
+        "name": "Vendor Inbound DACH VenProxy",
+        "change_category": "mixed",
+        "change_summary": "1 deleted, 2 modified",
+        "mappings": {
+          "added": 0,
+          "deleted": 1,
+          "modified": 2
+        }
+      },
+      {
+        "name": "NetSuiteVendorRequestResponsOTV",
+        "change_category": "modifications_only",
+        "change_summary": "3 modified",
+        "mappings": {
+          "added": 0,
+          "deleted": 0,
+          "modified": 3
+        }
+      },
+      {
+        "name": "VendorInboundVendorProxytoD365",
+        "change_category": "mixed",
+        "change_summary": "1 added, 1 modified",
+        "mappings": {
+          "added": 1,
+          "deleted": 0,
+          "modified": 1
+        }
+      }
+    ]
+  },
+  "qtest_result": {
+    "success": true,
+    "file_type": "QTEST",
+    "file_path": "QTEST_STTM.xlsx",
+    "summary": {
+      "total_test_cases": 1,
+      "total_test_steps": 1,
+      "detected_id_pattern": "(TC)-?(\\d+)",
+      "id_format_description": "TC-#### format",
+      "sheet_names": [
+        "Cover Page",
+        "MD-17085 Vendor Inbound"
+      ],
+      "average_steps_per_test": 1.0
+    },
+    "id_pattern": {
+      "pattern": "(TC)-?(\\d+)",
+      "description": "TC-#### format"
+    },
+    "test_case_samples": [
+      {
+        "id": "TC-65273",
+        "name": "Validate the Financial Request = Associate + Debit  is flowing all the way to DACH to D365 Gateway",
+        "step_count": 1,
+        "referenced_systems": [
+          "vendor",
+          "d365"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,619 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "STTM Impact Analysis API - Complete Collection",
+		"description": "Complete Postman collection for STTM Impact Analysis API including all Phase 1, Phase 2, and Phase 3 endpoints.\n\nBase URL: http://localhost:8004\n\n**Phase 1 - Foundation & File Management:**\n- Health checks\n- File listing and validation\n\n**Phase 2 - Core Analysis Engine:**\n- Impact analysis\n- Configuration presets\n\n**Phase 3 - Advanced Features:**\n- Test step generation\n- Report management\n- Configuration management\n- System monitoring",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Phase 1 - Foundation",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": ["{{base_url}}"],
+							"path": [""]
+						},
+						"description": "Basic API health check"
+					}
+				},
+				{
+					"name": "Detailed Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/health",
+							"host": ["{{base_url}}"],
+							"path": ["api", "health"]
+						},
+						"description": "Comprehensive health check with system information"
+					}
+				},
+				{
+					"name": "List STTM Files",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/files/sttm",
+							"host": ["{{base_url}}"],
+							"path": ["api", "files", "sttm"]
+						},
+						"description": "List all available STTM JSON files in input_files/sttm/"
+					}
+				},
+				{
+					"name": "List QTEST Files",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/files/qtest",
+							"host": ["{{base_url}}"],
+							"path": ["api", "files", "qtest"]
+						},
+						"description": "List all available QTEST Excel files in input_files/qtest/"
+					}
+				},
+				{
+					"name": "Validate STTM File",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/validate/sttm",
+							"host": ["{{base_url}}"],
+							"path": ["api", "validate", "sttm"]
+						},
+						"description": "Validate a single STTM file"
+					}
+				},
+				{
+					"name": "Validate QTEST File",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"qtest_file\": \"QTEST_STTM.xlsx\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/validate/qtest",
+							"host": ["{{base_url}}"],
+							"path": ["api", "validate", "qtest"]
+						},
+						"description": "Validate a single QTEST file"
+					}
+				},
+				{
+					"name": "Validate Both Files",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/validate/both",
+							"host": ["{{base_url}}"],
+							"path": ["api", "validate", "both"]
+						},
+						"description": "Validate both STTM and QTEST files together"
+					}
+				}
+			]
+		},
+		{
+			"name": "Phase 2 - Analysis Engine",
+			"item": [
+				{
+					"name": "Impact Analysis (Basic)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\",\n    \"include_html_in_response\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/analyze-impact",
+							"host": ["{{base_url}}"],
+							"path": ["api", "analyze-impact"]
+						},
+						"description": "Run impact analysis with default configuration"
+					}
+				},
+				{
+					"name": "Impact Analysis (With HTML)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\",\n    \"include_html_in_response\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/analyze-impact",
+							"host": ["{{base_url}}"],
+							"path": ["api", "analyze-impact"]
+						},
+						"description": "Run impact analysis and include HTML report in response"
+					}
+				},
+				{
+					"name": "Impact Analysis (Custom Config)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\",\n    \"config\": {\n        \"critical_threshold\": 20,\n        \"high_threshold\": 12,\n        \"medium_threshold\": 6,\n        \"low_threshold\": 2,\n        \"deleted_field_points\": 15,\n        \"modified_field_points\": 8,\n        \"added_field_points\": 3\n    },\n    \"include_html_in_response\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/analyze-impact",
+							"host": ["{{base_url}}"],
+							"path": ["api", "analyze-impact"]
+						},
+						"description": "Run impact analysis with custom configuration"
+					}
+				},
+				{
+					"name": "Get Configuration Presets",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/config/presets",
+							"host": ["{{base_url}}"],
+							"path": ["api", "config", "presets"]
+						},
+						"description": "Get available analysis configuration presets"
+					}
+				}
+			]
+		},
+		{
+			"name": "Phase 3 - Advanced Features",
+			"item": [
+				{
+					"name": "Test Step Generation",
+					"item": [
+						{
+							"name": "Generate Test Steps (Delta Mode)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\",\n    \"generation_mode\": \"delta\",\n    \"save_to_file\": true,\n    \"custom_filename\": \"test_steps_delta_example\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/generate/test-steps",
+									"host": ["{{base_url}}"],
+									"path": ["api", "generate", "test-steps"]
+								},
+								"description": "Generate test steps in delta mode (new steps only)"
+							}
+						},
+						{
+							"name": "Generate Test Steps (In-Place Mode)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\",\n    \"generation_mode\": \"in_place\",\n    \"save_to_file\": true,\n    \"custom_filename\": \"test_steps_in_place_example\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/generate/test-steps",
+									"host": ["{{base_url}}"],
+									"path": ["api", "generate", "test-steps"]
+								},
+								"description": "Generate test steps in in-place mode (full test case updates)"
+							}
+						},
+						{
+							"name": "Generate Test Steps (Custom Config)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\",\n    \"generation_mode\": \"delta\",\n    \"config\": {\n        \"critical_threshold\": 18,\n        \"high_threshold\": 10,\n        \"deleted_field_points\": 12\n    },\n    \"save_to_file\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/generate/test-steps",
+									"host": ["{{base_url}}"],
+									"path": ["api", "generate", "test-steps"]
+								},
+								"description": "Generate test steps with custom analysis configuration"
+							}
+						}
+					]
+				},
+				{
+					"name": "Report Management",
+					"item": [
+						{
+							"name": "List All Reports",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/reports",
+									"host": ["{{base_url}}"],
+									"path": ["api", "reports"]
+								},
+								"description": "List all saved reports"
+							}
+						},
+						{
+							"name": "List Reports by Type",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/reports?report_type=test_steps",
+									"host": ["{{base_url}}"],
+									"path": ["api", "reports"],
+									"query": [
+										{
+											"key": "report_type",
+											"value": "test_steps"
+										}
+									]
+								},
+								"description": "List reports filtered by type (analysis, test_steps, config)"
+							}
+						},
+						{
+							"name": "Get Report by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/reports/{{report_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "reports", "{{report_id}}"]
+								},
+								"description": "Retrieve a specific report by ID"
+							}
+						},
+						{
+							"name": "Get Report Data Only",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/reports/{{report_id}}?data_only=true",
+									"host": ["{{base_url}}"],
+									"path": ["api", "reports", "{{report_id}}"],
+									"query": [
+										{
+											"key": "data_only",
+											"value": "true"
+										}
+									]
+								},
+								"description": "Get only report data without metadata"
+							}
+						},
+						{
+							"name": "Delete Report",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/reports/{{report_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "reports", "{{report_id}}"]
+								},
+								"description": "Delete a specific report"
+							}
+						},
+						{
+							"name": "Storage Statistics",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/storage/stats",
+									"host": ["{{base_url}}"],
+									"path": ["api", "storage", "stats"]
+								},
+								"description": "Get storage statistics for reports"
+							}
+						}
+					]
+				},
+				{
+					"name": "Configuration Management",
+					"item": [
+						{
+							"name": "Save Custom Configuration",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"High Sensitivity Config\",\n    \"description\": \"Configuration with high sensitivity thresholds for detailed analysis\",\n    \"config\": {\n        \"critical_threshold\": 25,\n        \"high_threshold\": 15,\n        \"medium_threshold\": 8,\n        \"low_threshold\": 3,\n        \"deleted_field_points\": 20,\n        \"modified_field_points\": 12,\n        \"added_field_points\": 5,\n        \"exact_tab_match_points\": 15,\n        \"field_name_match_points\": 8\n    },\n    \"recommended_for\": [\"detailed_analysis\", \"critical_systems\", \"regulatory_compliance\"]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/config/save",
+									"host": ["{{base_url}}"],
+									"path": ["api", "config", "save"]
+								},
+								"description": "Save a custom analysis configuration"
+							}
+						},
+						{
+							"name": "List Saved Configurations",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/config/saved",
+									"host": ["{{base_url}}"],
+									"path": ["api", "config", "saved"]
+								},
+								"description": "List all saved configurations"
+							}
+						},
+						{
+							"name": "Get Saved Configuration",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/config/saved/{{config_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "config", "saved", "{{config_id}}"]
+								},
+								"description": "Get a specific saved configuration"
+							}
+						},
+						{
+							"name": "Delete Saved Configuration",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/config/saved/{{config_id}}",
+									"host": ["{{base_url}}"],
+									"path": ["api", "config", "saved", "{{config_id}}"]
+								},
+								"description": "Delete a saved configuration"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Example Workflows",
+			"item": [
+				{
+					"name": "Complete Analysis Workflow",
+					"item": [
+						{
+							"name": "1. Check API Health",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/health",
+									"host": ["{{base_url}}"],
+									"path": ["api", "health"]
+								}
+							}
+						},
+						{
+							"name": "2. List Available Files",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/files/sttm",
+									"host": ["{{base_url}}"],
+									"path": ["api", "files", "sttm"]
+								}
+							}
+						},
+						{
+							"name": "3. Validate Files",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/validate/both",
+									"host": ["{{base_url}}"],
+									"path": ["api", "validate", "both"]
+								}
+							}
+						},
+						{
+							"name": "4. Run Impact Analysis",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\",\n    \"include_html_in_response\": false\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/analyze-impact",
+									"host": ["{{base_url}}"],
+									"path": ["api", "analyze-impact"]
+								}
+							}
+						},
+						{
+							"name": "5. Generate Test Steps",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"sttm_file\": \"STTM_DIFF.json\",\n    \"qtest_file\": \"QTEST_STTM.xlsx\",\n    \"generation_mode\": \"delta\",\n    \"save_to_file\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/generate/test-steps",
+									"host": ["{{base_url}}"],
+									"path": ["api", "generate", "test-steps"]
+								}
+							}
+						},
+						{
+							"name": "6. Check Generated Reports",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/reports",
+									"host": ["{{base_url}}"],
+									"path": ["api", "reports"]
+								}
+							}
+						}
+					],
+					"description": "Complete workflow from health check to test step generation"
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set dynamic variables for common use",
+					"if (!pm.globals.get('report_id')) {",
+					"    pm.globals.set('report_id', 'example_report_id');",
+					"}",
+					"",
+					"if (!pm.globals.get('config_id')) {",
+					"    pm.globals.set('config_id', 'example_config_id');",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Auto-extract IDs from responses for chaining requests",
+					"",
+					"// Extract report_id from test step generation response",
+					"if (pm.response.json() && pm.response.json().report_id) {",
+					"    pm.globals.set('report_id', pm.response.json().report_id);",
+					"    console.log('Extracted report_id: ' + pm.response.json().report_id);",
+					"}",
+					"",
+					"// Extract config_id from config save response",
+					"if (pm.response.json() && pm.response.json().config_id) {",
+					"    pm.globals.set('config_id', pm.response.json().config_id);",
+					"    console.log('Extracted config_id: ' + pm.response.json().config_id);",
+					"}",
+					"",
+					"// Basic response validation",
+					"pm.test('Response time is acceptable', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(30000); // 30 seconds",
+					"});",
+					"",
+					"pm.test('Content-Type is correct', function () {",
+					"    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8004",
+			"description": "Base URL for STTM Impact Analysis API"
+		}
+	]
+}

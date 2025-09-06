@@ -1,0 +1,1 @@
+# Utils package for STTM Impact Analysis Tool

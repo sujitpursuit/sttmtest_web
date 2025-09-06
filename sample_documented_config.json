@@ -1,0 +1,127 @@
+{
+  "_documentation": {
+    "title": "STTM Impact Analysis - Scoring Configuration",
+    "description": "This file controls how test cases are scored for impact when STTM changes occur",
+    "version": "Phase 2",
+    "last_updated": "2025-01-28"
+  },
+  
+  "scoring": {
+    "_comment": "Points awarded for different types of evidence that a test case is affected",
+    
+    "tab_name_match_points": 3,
+    "_tab_name_match_explanation": "Points when test case mentions the changed STTM tab name (e.g., test mentions 'Vendor DACH' and we changed 'Vendor Inbound DACH VenProxy')",
+    
+    "deleted_field_points": 5,
+    "_deleted_field_explanation": "Points per deleted field in STTM (high impact because deleted fields usually break tests)",
+    "_deleted_field_example": "If STTM deleted 'VendorID' field and test uses VendorID, test will likely fail",
+    
+    "modified_field_points": 3, 
+    "_modified_field_explanation": "Points per modified field in STTM (medium impact because field still exists but changed)",
+    "_modified_field_example": "If STTM changed VendorID format from '12345' to 'VEND-12345', tests might need updates",
+    
+    "added_field_points": 1,
+    "_added_field_explanation": "Points per added field in STTM (low impact because new fields rarely break existing tests)",
+    "_added_field_example": "Adding new 'VendorCategory' field usually doesn't affect existing tests",
+    
+    "exact_tab_match_points": 2,
+    "_exact_tab_match_explanation": "Bonus points when test case mentions the exact STTM tab name",
+    "_exact_tab_match_example": "Test mentions complete name 'Vendor Inbound DACH VenProxy'",
+    
+    "partial_tab_match_points": 1,
+    "_partial_tab_match_explanation": "Points when test case mentions some keywords from STTM tab name",
+    "_partial_tab_match_example": "Test mentions 'DACH vendor' when tab is 'Vendor Inbound DACH VenProxy'",
+    
+    "field_name_match_points": 2,
+    "_field_name_match_explanation": "Points for each field name mentioned in test case content",
+    "_field_name_match_example": "Test description contains 'VendorID' and VendorID was changed in STTM",
+    
+    "sample_data_match_points": 3,
+    "_sample_data_match_explanation": "Points when test case mentions specific sample data values that changed",
+    "_sample_data_match_example": "Test checks for '12345' and STTM shows sample changed from '12345' to 'VEND-12345'",
+    
+    "_impact_thresholds_comment": "Point thresholds that determine final impact level",
+    
+    "critical_threshold": 12,
+    "_critical_threshold_explanation": "12+ points = CRITICAL impact (drop everything and update this test immediately)",
+    "_critical_threshold_example": "Test mentions tab (3pts) + uses deleted field (5pts) + field name match (2pts) + sample data (3pts) = 13pts = CRITICAL",
+    
+    "high_threshold": 8,
+    "_high_threshold_explanation": "8-11 points = HIGH impact (test should be updated soon)",
+    "_high_threshold_example": "Test mentions tab (3pts) + uses modified field (3pts) + field name match (2pts) = 8pts = HIGH",
+    
+    "medium_threshold": 4,
+    "_medium_threshold_explanation": "4-7 points = MEDIUM impact (test should be reviewed and possibly updated)",  
+    "_medium_threshold_example": "Test mentions tab (3pts) + uses added field (1pt) = 4pts = MEDIUM",
+    
+    "low_threshold": 0,
+    "_low_threshold_explanation": "0-3 points = LOW impact (monitor but probably no action needed)",
+    "_low_threshold_example": "Only partial tab match (1pt) + added field (1pt) = 2pts = LOW",
+    
+    "_matching_sensitivity_comment": "Controls how strict text matching is",
+    
+    "case_sensitive_matching": false,
+    "_case_sensitive_explanation": "false = 'VendorID' matches 'vendorid' | true = exact case required",
+    
+    "minimum_keyword_length": 3,
+    "_minimum_keyword_explanation": "Ignore short words when matching (e.g., ignore 'ID' but match 'Vendor')",
+    "_minimum_keyword_example": "Tab 'Vendor ID Data' becomes keywords ['Vendor', 'Data'] (ignores 'ID')"
+  },
+  
+  "_examples": {
+    "high_impact_scenario": {
+      "situation": "STTM deleted VendorID field from 'Vendor Inbound DACH' tab",
+      "test_case": "TC-001: Validate DACH vendor ID processing",
+      "scoring": {
+        "deleted_field_points": 5,
+        "partial_tab_match_points": 1,
+        "field_name_match_points": 2,
+        "total": 8,
+        "result": "HIGH impact - test mentions DACH (1pt), uses deleted VendorID (5pts), field name match (2pts)"
+      }
+    },
+    
+    "low_impact_scenario": {
+      "situation": "STTM added new VendorCategory field to 'Customer Data' tab", 
+      "test_case": "TC-002: Process payment transactions",
+      "scoring": {
+        "added_field_points": 1,
+        "total": 1, 
+        "result": "LOW impact - only added field (1pt), test doesn't mention Customer Data tab"
+      }
+    }
+  },
+  
+  "_tuning_guide": {
+    "to_be_more_sensitive": {
+      "description": "Flag more tests as high impact (conservative approach)",
+      "changes": [
+        "Lower thresholds: critical=10, high=6, medium=3", 
+        "Higher points: deleted_field_points=6, modified_field_points=4"
+      ]
+    },
+    
+    "to_be_less_sensitive": {
+      "description": "Flag fewer tests as high impact (aggressive approach)",
+      "changes": [
+        "Higher thresholds: critical=15, high=10, medium=6",
+        "Lower points: deleted_field_points=4, modified_field_points=2"  
+      ]
+    },
+    
+    "for_strict_environments": {
+      "description": "Only flag obvious impacts",
+      "changes": [
+        "case_sensitive_matching=true",
+        "minimum_keyword_length=4",
+        "Higher thresholds across the board"
+      ]
+    }
+  },
+  
+  "log_level": "INFO",
+  "_log_level_explanation": "INFO=normal output | DEBUG=detailed matching info | WARNING=errors only",
+  
+  "output_directory": "./output",
+  "_output_directory_explanation": "Where to save impact analysis reports"
+}

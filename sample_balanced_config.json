@@ -1,0 +1,20 @@
+{
+  "scoring": {
+    "tab_name_match_points": 3,
+    "deleted_field_points": 5,
+    "modified_field_points": 3,
+    "added_field_points": 1,
+    "exact_tab_match_points": 2,
+    "partial_tab_match_points": 1,
+    "field_name_match_points": 2,
+    "sample_data_match_points": 3,
+    "critical_threshold": 12,
+    "high_threshold": 8,
+    "medium_threshold": 4,
+    "low_threshold": 0,
+    "case_sensitive_matching": false,
+    "minimum_keyword_length": 3
+  },
+  "log_level": "INFO",
+  "output_directory": "./output"
+}

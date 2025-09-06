@@ -1,0 +1,589 @@
+{
+  "info": {
+    "name": "STTM Impact Analysis API - Stage 2",
+    "description": "Complete Postman collection for testing STTM Impact Analysis API Stage 2 functionality including impact analysis, configuration presets, and file management.",
+    "version": "2.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8004",
+      "type": "string",
+      "description": "Base URL for the STTM Impact Analysis API"
+    },
+    {
+      "key": "sttm_file",
+      "value": "STTM_DIFF.json",
+      "type": "string",
+      "description": "Default STTM file for testing"
+    },
+    {
+      "key": "qtest_file",
+      "value": "QTEST_STTM.xlsx",
+      "type": "string",
+      "description": "Default QTEST file for testing"
+    }
+  ],
+  "item": [
+    {
+      "name": "🏥 Health & Status",
+      "item": [
+        {
+          "name": "API Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Check if API is running and get basic information"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📁 File Management",
+      "item": [
+        {
+          "name": "List STTM Files",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/files/sttm",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", "sttm"]
+            },
+            "description": "Get list of available STTM JSON files in input_files/sttm/"
+          },
+          "response": []
+        },
+        {
+          "name": "List QTEST Files",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/files/qtest",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", "qtest"]
+            },
+            "description": "Get list of available QTEST Excel files in input_files/qtest/"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "✅ File Validation",
+      "item": [
+        {
+          "name": "Validate STTM File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/validate/sttm",
+              "host": ["{{base_url}}"],
+              "path": ["api", "validate", "sttm"]
+            },
+            "description": "Validate a single STTM JSON file using existing CLI parser"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate QTEST File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qtest_file\": \"{{qtest_file}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/validate/qtest",
+              "host": ["{{base_url}}"],
+              "path": ["api", "validate", "qtest"]
+            },
+            "description": "Validate a single QTEST Excel file using existing CLI parser"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Both Files",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"{{qtest_file}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/validate/both",
+              "host": ["{{base_url}}"],
+              "path": ["api", "validate", "both"]
+            },
+            "description": "Validate both STTM and QTEST files together with compatibility check"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Non-Existent File (Error Test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"nonexistent.json\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/validate/sttm",
+              "host": ["{{base_url}}"],
+              "path": ["api", "validate", "sttm"]
+            },
+            "description": "Test error handling with non-existent file"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "⚙️ Configuration Management",
+      "item": [
+        {
+          "name": "Get Configuration Presets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/config/presets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "config", "presets"]
+            },
+            "description": "Get all available analysis configuration presets (balanced, conservative, aggressive, strict)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🎯 Impact Analysis - Main Features",
+      "item": [
+        {
+          "name": "Basic Impact Analysis (Default Config)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"{{qtest_file}}\",\n  \"save_reports\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Run complete impact analysis with default configuration. Saves HTML and JSON reports to reports/ directory."
+          },
+          "response": []
+        },
+        {
+          "name": "Impact Analysis without File Saving",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"{{qtest_file}}\",\n  \"save_reports\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Run impact analysis without saving report files. Returns HTML and JSON in API response only."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔧 Impact Analysis - Custom Configurations",
+      "item": [
+        {
+          "name": "Conservative Analysis (High Thresholds)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"{{qtest_file}}\",\n  \"config\": {\n    \"critical_threshold\": 25,\n    \"high_threshold\": 18,\n    \"medium_threshold\": 12,\n    \"low_threshold\": 6\n  },\n  \"save_reports\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Conservative analysis with high thresholds. Only flags definitive impacts."
+          },
+          "response": []
+        },
+        {
+          "name": "Aggressive Analysis (Low Thresholds)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"{{qtest_file}}\",\n  \"config\": {\n    \"critical_threshold\": 10,\n    \"high_threshold\": 6,\n    \"medium_threshold\": 3,\n    \"low_threshold\": 1\n  },\n  \"save_reports\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Aggressive analysis with low thresholds. Catches potential impacts early."
+          },
+          "response": []
+        },
+        {
+          "name": "Custom Scoring Points",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"{{qtest_file}}\",\n  \"config\": {\n    \"deleted_field_points\": 15,\n    \"modified_field_points\": 8,\n    \"added_field_points\": 3,\n    \"tab_name_match_points\": 10,\n    \"field_name_match_points\": 6\n  },\n  \"save_reports\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Custom scoring with higher points for field deletions and tab name matches."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "❌ Error Testing",
+      "item": [
+        {
+          "name": "Analysis with Missing STTM File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"missing_file.json\",\n  \"qtest_file\": \"{{qtest_file}}\",\n  \"save_reports\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Test error handling when STTM file doesn't exist"
+          },
+          "response": []
+        },
+        {
+          "name": "Analysis with Missing QTEST File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"missing_file.xlsx\",\n  \"save_reports\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Test error handling when QTEST file doesn't exist"
+          },
+          "response": []
+        },
+        {
+          "name": "Analysis with Invalid Configuration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"{{qtest_file}}\",\n  \"config\": {\n    \"critical_threshold\": \"invalid_value\",\n    \"unknown_parameter\": 123\n  },\n  \"save_reports\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Test error handling with invalid configuration parameters"
+          },
+          "response": []
+        },
+        {
+          "name": "Analysis with Missing Required Fields",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qtest_file\": \"{{qtest_file}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Test validation when required sttm_file field is missing"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📊 Performance Testing",
+      "item": [
+        {
+          "name": "Quick Analysis (Performance Check)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sttm_file\": \"{{sttm_file}}\",\n  \"qtest_file\": \"{{qtest_file}}\",\n  \"save_reports\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/analyze-impact",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analyze-impact"]
+            },
+            "description": "Quick analysis without file saving to check processing time. Should be < 1 second."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Set timestamp for unique test runs",
+          "pm.globals.set('timestamp', Date.now());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test scripts for all requests",
+          "",
+          "// Check response time",
+          "pm.test('Response time is acceptable', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "// Check status code for non-error endpoints",
+          "if (!pm.request.name.includes('Error') && !pm.request.name.includes('Missing')) {",
+          "    pm.test('Status code is 200', function () {",
+          "        pm.response.to.have.status(200);",
+          "    });",
+          "}",
+          "",
+          "// Check Content-Type header",
+          "pm.test('Content-Type is application/json', function () {",
+          "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "});",
+          "",
+          "// Parse and validate JSON response",
+          "pm.test('Response is valid JSON', function () {",
+          "    pm.response.to.be.json;",
+          "});",
+          "",
+          "// Additional tests for analysis endpoints",
+          "if (pm.request.name.includes('Impact Analysis') && !pm.request.name.includes('Error') && !pm.request.name.includes('Missing')) {",
+          "    pm.test('Analysis completed successfully', function () {",
+          "        const jsonData = pm.response.json();",
+          "        pm.expect(jsonData).to.have.property('success');",
+          "        pm.expect(jsonData.success).to.be.true;",
+          "    });",
+          "    ",
+          "    pm.test('Analysis contains required fields', function () {",
+          "        const jsonData = pm.response.json();",
+          "        pm.expect(jsonData).to.have.property('summary');",
+          "        pm.expect(jsonData).to.have.property('html_report');",
+          "        pm.expect(jsonData).to.have.property('json_report');",
+          "        pm.expect(jsonData).to.have.property('processing_time_seconds');",
+          "    });",
+          "    ",
+          "    pm.test('Processing time is reasonable', function () {",
+          "        const jsonData = pm.response.json();",
+          "        pm.expect(jsonData.processing_time_seconds).to.be.below(10);",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}

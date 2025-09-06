@@ -1,0 +1,256 @@
+{
+  "report_metadata": {
+    "title": "Comparison Report: STTM2.xlsx vs STTM.xlsx",
+    "subtitle": "Detailed analysis of changes between workbook versions",
+    "generated_by": "Excel Comparison Tool v2.0",
+    "generation_timestamp": "August 25, 2025 - 07:33 PM",
+    "processing_time": "< 1 second"
+  },
+  "file_information": {
+    "original_file": {
+      "name": "STTM2.xlsx",
+      "path": "STTM2.xlsx",
+      "last_modified": "2025-08-24T20:05:21.381992Z"
+    },
+    "modified_file": {
+      "name": "STTM.xlsx",
+      "path": "STTM.xlsx",
+      "last_modified": "2025-08-24T16:23:39.642381Z"
+    }
+  },
+  "executive_summary": {
+    "statistics": {
+      "total_changes": 11,
+      "tabs": {
+        "original_count": 6,
+        "modified_count": 6,
+        "added": 0,
+        "deleted": 0,
+        "modified": 3,
+        "unchanged": 3
+      },
+      "mappings": {
+        "original_count": 495,
+        "modified_count": 495,
+        "added": 1,
+        "deleted": 1,
+        "modified": 6
+      }
+    }
+  },
+  "technical_details": {
+    "comparison_method": "Content-based unique ID matching",
+    "position_independence": "Enabled - handles row reordering",
+    "hidden_tabs": "Skipped by default configuration"
+  },
+  "detailed_changes": {
+    "changed_tabs": [
+      {
+        "tab_name": "Vendor Inbound DACH VenProxy",
+        "source_system": "DACH",
+        "target_system": "Vendor Proxy",
+        "change_type": "mixed",
+        "change_badge": {
+          "class": "badge-mixed",
+          "text": "~2 -1 Mixed"
+        },
+        "change_summary": {
+          "added": 0,
+          "deleted": 1,
+          "modified": 2,
+          "description": "1 mapping deleted and 2 mappings modified"
+        },
+        "mappings": {
+          "added_mappings": [],
+          "deleted_mappings": [
+            {
+              "status": "Deleted",
+              "original_row_number": 1,
+              "mapping_fields": {
+                "Source Canonical Name": "Party-Dealer Associate",
+                "Source Field": "New_source_field",
+                "Target Field": "newtargetfield"
+              },
+              "other_fields": {}
+            }
+          ],
+          "modified_mappings": [
+            {
+              "status": "Modified",
+              "row_number": 1,
+              "mapping_fields": {
+                "Source Canonical Name": "Incentives-FinancialRequest",
+                "Source Field": "VIN",
+                "Target Canonical Name": "FinancialRequest",
+                "Target Field": "VIN"
+              },
+              "field_changes": {
+                "source_sample_data": {
+                  "old_value": "1HGCM82633A123456_sample_date_change",
+                  "new_value": "1HGCM82633A123456"
+                }
+              }
+            },
+            {
+              "status": "Modified",
+              "row_number": 2,
+              "mapping_fields": {
+                "Source Canonical Name": "Party-Dealer Associate",
+                "Source Field": "DealerCodeID",
+                "Target Canonical Name": "Party-DealerAssociate",
+                "Target Field": "DealerCodeID"
+              },
+              "field_changes": {
+                "completion_type": {
+                  "old_value": "SOURCE_COMPLETED",
+                  "new_value": "COMPLETED"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tab_name": "NetSuiteVendorRequestResponsOTV",
+        "source_system": "FinancialRequest",
+        "target_system": "NetSuite Vendor Work Item",
+        "change_type": "modifications_only",
+        "change_badge": {
+          "class": "badge-modified",
+          "text": "~3 Modified"
+        },
+        "change_summary": {
+          "added": 0,
+          "deleted": 0,
+          "modified": 3,
+          "description": "3 mappings modified"
+        },
+        "mappings": {
+          "added_mappings": [],
+          "deleted_mappings": [],
+          "modified_mappings": [
+            {
+              "status": "Modified",
+              "row_number": 1,
+              "mapping_fields": {
+                "Target Canonical Name": "NetSuite Vendor Work Item",
+                "Target Field": "SourceSystem"
+              },
+              "field_changes": {
+                "target_comments": {
+                  "old_value": "SourceSystem = D365_changed",
+                  "new_value": "SourceSystem = D365"
+                }
+              }
+            },
+            {
+              "status": "Modified",
+              "row_number": 2,
+              "mapping_fields": {
+                "Source Canonical Name": "FinancialRequest",
+                "Source Field": "ConsumerLastName, ConsumerFirstName",
+                "Target Canonical Name": "NetSuite Vendor Work Item",
+                "Target Field": "VendorName"
+              },
+              "field_changes": {
+                "completion_type": {
+                  "old_value": "SOURCE_COMPLETED",
+                  "new_value": "COMPLETED"
+                }
+              }
+            },
+            {
+              "status": "Modified",
+              "row_number": 3,
+              "mapping_fields": {
+                "Source Canonical Name": "FinancialRequest",
+                "Source Field": "RequestId  _ id",
+                "Target Canonical Name": "NetSuite Vendor Work Item",
+                "Target Field": "Correlation ID"
+              },
+              "field_changes": {
+                "completion_type": {
+                  "old_value": "TARGET_COMPLETED",
+                  "new_value": "COMPLETED"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tab_name": "VendorInboundVendorProxytoD365",
+        "source_system": "Vendor Inbound Vendor Proxy",
+        "target_system": "D365",
+        "change_type": "mixed",
+        "change_badge": {
+          "class": "badge-mixed",
+          "text": "+1 ~1 Mixed"
+        },
+        "change_summary": {
+          "added": 1,
+          "deleted": 0,
+          "modified": 1,
+          "description": "1 mapping added and 1 mapping modified"
+        },
+        "mappings": {
+          "added_mappings": [
+            {
+              "status": "Added",
+              "row_number": 1,
+              "mapping_fields": {
+                "Source Canonical Name": "DealerAssociateInfo",
+                "Source Field": "PostCode",
+                "Target Entity": "VendorPostalAddress",
+                "Target Field": "ZipCode"
+              },
+              "other_fields": {
+                "Source Type": "String",
+                "Target Type": "String",
+                "Target Length": "10"
+              }
+            }
+          ],
+          "deleted_mappings": [],
+          "modified_mappings": [
+            {
+              "status": "Modified",
+              "row_number": 1,
+              "mapping_fields": {
+                "Source Field": "OnHoldStatus",
+                "Target Entity": "Vendors V2",
+                "Target Field": "Blocked"
+              },
+              "field_changes": {
+                "source_description": {
+                  "old_value": "Defaulted in Gateway to  7",
+                  "new_value": "Defaulted in Gateway to 5"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "unchanged_tabs": [
+      {
+        "tab_name": "VendorInbound-DealerAssociate",
+        "source_system": "DACH",
+        "target_system": "D365",
+        "status": "unchanged"
+      },
+      {
+        "tab_name": "NetSuiteVendorReqRespAssociate",
+        "source_system": "DealerAssociateInfo",
+        "target_system": "NetSuiteVendorWorkItem",
+        "status": "unchanged"
+      },
+      {
+        "tab_name": "Vendor Inbound ",
+        "source_system": "DACH",
+        "target_system": "D365",
+        "status": "unchanged"
+      }
+    ]
+  }
+}

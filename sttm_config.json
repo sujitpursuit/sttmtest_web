@@ -1,0 +1,52 @@
+{
+  "matching": {
+    "tab_name_threshold": 0.8,
+    "field_name_threshold": 0.7,
+    "content_matching_threshold": 0.6,
+    "case_sensitive_tab_matching": false,
+    "case_sensitive_field_matching": false,
+    "use_fuzzy_matching": true,
+    "use_keyword_extraction": true,
+    "use_partial_matching": true
+  },
+  "impact_scoring": {
+    "deleted_mapping_weight": 10.0,
+    "modified_mapping_weight": 5.0,
+    "added_mapping_weight": 3.0,
+    "sample_data_change_weight": 8.0,
+    "canonical_name_change_weight": 6.0,
+    "field_name_change_weight": 4.0,
+    "high_confidence_multiplier": 1.2,
+    "medium_confidence_multiplier": 1.0,
+    "low_confidence_multiplier": 0.8,
+    "high_impact_threshold": 8.0,
+    "medium_impact_threshold": 4.0
+  },
+  "parsing": {
+    "skip_empty_rows": true,
+    "trim_whitespace": true,
+    "case_insensitive_columns": true,
+    "min_confidence_for_pattern": 0.7,
+    "max_sample_ids_for_analysis": 50,
+    "continue_on_parsing_errors": true,
+    "log_parsing_warnings": true
+  },
+  "reporting": {
+    "generate_json": true,
+    "generate_html": false,
+    "generate_markdown": false,
+    "generate_excel": false,
+    "include_executive_summary": true,
+    "include_detailed_analysis": true,
+    "include_new_test_generation": true,
+    "include_gap_analysis": true,
+    "max_description_length": 500,
+    "show_confidence_scores": true,
+    "group_by_impact_level": true
+  },
+  "log_level": "INFO",
+  "output_directory": "./output",
+  "temp_directory": "./temp",
+  "parallel_processing": false,
+  "max_workers": 4
+}
