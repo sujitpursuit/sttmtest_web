@@ -3,7 +3,7 @@ FastAPI Main Application - STTM Impact Analysis API
 Stage 1: Foundation & File Management
 """
 
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Query
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Dict, Any
 import shutil
 import json
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add parent directory to path to import existing modules
 sys.path.append(str(Path(__file__).parent.parent))
@@ -23,11 +28,16 @@ from api.services.analysis_service import AnalysisService
 from api.services.test_step_service import TestStepService
 from api.services.report_service import ReportService
 from api.services.config_service import ConfigService
+from api.services.app_version_service import app_version_service
+from api.services.version_tracking_service import VersionTrackingService
+from api.services.azure_blob_service import AzureBlobService
+from api.services.qtest_azure_service import QTestAzureService
+from api.services.qtest_blob_reader_service import QTestBlobReaderService
 from api.middleware.logging import EnhancedRequestLoggingMiddleware
 from api.models.api_models import (
     HealthResponse, FileListResponse, ValidationRequest, ValidationResponse,
     CombinedValidationResponse, ErrorResponse, FileInfo, ImpactAnalysisRequest,
-    TestStepGenerationRequest, TestStepGenerationResponse, ReportListResponse,
+    TestStepGenerationResponse, ReportListResponse,
     StorageStatsResponse, ConfigSaveRequest, SavedConfigListResponse,
     DetailedHealthResponse
 )
@@ -50,6 +60,7 @@ from utils.logger import get_logger
 logging.basicConfig(level=logging.INFO)
 logger = get_logger(__name__)
 
+
 # Create FastAPI app
 app = FastAPI(
     title="STTM Impact Analysis API",
@@ -71,6 +82,8 @@ analysis_service = AnalysisService()
 test_step_service = TestStepService()
 report_service = ReportService()
 config_service = ConfigService()
+version_tracking_service = VersionTrackingService()
+azure_blob_service = AzureBlobService()
 response_optimizer = ResponseOptimizer(logger)
 
 # Add request logging middleware
@@ -80,8 +93,8 @@ app.add_middleware(EnhancedRequestLoggingMiddleware)
 # Mount static files for frontend
 frontend_path = Path(__file__).parent.parent / "frontend"
 if frontend_path.exists():
-    app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend")
-    logger.info(f"Static files mounted at /frontend from: {frontend_path}")
+    app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+    logger.info(f"Static files mounted at /static from: {frontend_path}")
 else:
     logger.warning(f"Frontend directory not found: {frontend_path}")
 
@@ -89,6 +102,26 @@ else:
 @app.get("/")
 async def serve_frontend():
     """Serve the frontend index.html file at root"""
+    index_path = frontend_path / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not found")
+
+# Serve frontend index.html at /frontend route
+@app.get("/frontend")
+async def serve_frontend_route():
+    """Serve the frontend index.html file at /frontend"""
+    index_path = frontend_path / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not found")
+
+# Handle trailing slash for frontend
+@app.get("/frontend/")
+async def serve_frontend_trailing_slash():
+    """Serve the frontend index.html file at /frontend/"""
     index_path = frontend_path / "index.html"
     if index_path.exists():
         return FileResponse(str(index_path))
@@ -110,6 +143,28 @@ if output_path.exists():
     logger.info(f"Output files directory mounted at /output_files from: {output_path}")
 else:
     logger.warning(f"Output files directory not found: {output_path}")
+
+# API Version endpoint
+@app.get("/api/version")
+async def get_version():
+    """Get application version information"""
+    try:
+        version_info = app_version_service.get_version_info()
+        return {
+            "success": True,
+            "version_info": version_info
+        }
+    except Exception as e:
+        logger.error(f"Error getting version info: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "version_info": {
+                "version": "1.0.1",
+                "build_date": "2025-09-08",
+                "build_hash": "unknown"
+            }
+        }
 
 
 def get_file_service() -> FileService:
@@ -137,6 +192,16 @@ def get_config_service() -> ConfigService:
     return config_service
 
 
+def get_version_tracking_service() -> VersionTrackingService:
+    """Dependency for version tracking service"""
+    return version_tracking_service
+
+
+def get_azure_blob_service() -> AzureBlobService:
+    """Dependency for Azure blob service"""
+    return azure_blob_service
+
+
 @app.get("/", response_model=HealthResponse)
 async def health_check():
     """API health check and information endpoint"""
@@ -144,7 +209,7 @@ async def health_check():
         status="healthy",
         timestamp=datetime.now().isoformat(),
         version="1.0.0-stage3",
-        environment="development"
+        environment=os.getenv('ENVIRONMENT', 'development')
     )
 
 
@@ -173,7 +238,7 @@ async def detailed_health_check():
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
             "version": "1.0.0-stage3",
-            "environment": "development",
+            "environment": os.getenv('ENVIRONMENT', 'development'),
             "uptime_seconds": 0,
             "system_info": {
                 "platform": platform.platform(),
@@ -207,7 +272,7 @@ async def detailed_health_check():
             "status": "degraded",
             "timestamp": datetime.now().isoformat(),
             "version": "1.0.0-stage3",
-            "environment": "development",
+            "environment": os.getenv('ENVIRONMENT', 'development'),
             "error": str(e)
         }
 
@@ -382,6 +447,52 @@ async def upload_and_validate_qtest(
         raise HTTPException(
             status_code=500,
             detail=f"Upload/validation failed: {str(e)}"
+        )
+
+
+@app.post("/api/upload/qtest")
+async def upload_qtest_file(
+    file: UploadFile = File(...)
+):
+    """Upload QTest file for comparison-based workflow - simple upload without validation"""
+    try:
+        logger.info(f"Uploading QTest file: {file.filename}")
+        
+        # Validate file extension
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            raise HTTPException(
+                status_code=400,
+                detail="Only Excel files (.xlsx, .xls) are allowed"
+            )
+        
+        # Create qtest directory if it doesn't exist
+        from pathlib import Path
+        qtest_dir = Path(__file__).parent.parent / "input_files" / "qtest"
+        qtest_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save file to qtest directory
+        qtest_path = qtest_dir / file.filename
+        with open(qtest_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        logger.info(f"QTest file uploaded successfully: {file.filename}")
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "message": f"QTest file '{file.filename}' uploaded successfully",
+            "file_path": str(qtest_path),
+            "file_size": len(content)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"QTest upload error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Upload failed: {str(e)}"
         )
 
 
@@ -603,103 +714,6 @@ async def get_config_presets(
 # ============================
 # PHASE 3 ENDPOINTS START HERE
 # ============================
-
-@app.post("/api/generate/test-steps", response_model=TestStepGenerationResponse)
-async def generate_test_steps(
-    request: TestStepGenerationRequest,
-    test_step_service: TestStepService = Depends(get_test_step_service),
-    analysis_service: AnalysisService = Depends(get_analysis_service),
-    report_service: ReportService = Depends(get_report_service)
-):
-    """Generate test steps based on STTM impact analysis (Phase 3B functionality)"""
-    try:
-        logger.info(f"Starting test step generation: {request.sttm_file} + {request.qtest_file}")
-        # Force reload
-        
-        # First run impact analysis to get the data needed for test step generation
-        analysis_result = analysis_service.run_impact_analysis(
-            sttm_file=request.sttm_file,
-            qtest_file=request.qtest_file,
-            config=request.config.dict() if request.config else None,
-            include_html_in_response=False  # We only need the data structures
-        )
-        
-        # Create a new analyzer to get the required objects directly
-        from models.impact_models import ImpactAnalysisConfig
-        from analyzers.impact_analyzer import ImpactAnalyzer
-        from parsers.qtest_parser import QTestParser
-        
-        # Get configuration
-        if request.config:
-            try:
-                analysis_config = ImpactAnalysisConfig(**request.config.dict())
-            except Exception as e:
-                raise TestStepGenerationError(f"Invalid configuration: {str(e)}")
-        else:
-            analysis_config = ImpactAnalysisConfig()
-            
-        # Get file paths
-        sttm_path = analysis_service.file_service.get_sttm_path(request.sttm_file)
-        qtest_path = analysis_service.file_service.get_qtest_path(request.qtest_file)
-        
-        # Parse documents and run analysis to get objects
-        analyzer = ImpactAnalyzer(analysis_config, logger)
-        impact_report = analyzer.analyze_impact(sttm_path, qtest_path)
-        
-        # Parse qtest document separately to get test cases  
-        qtest_parser = QTestParser(logger)
-        qtest_document = qtest_parser.parse_file(qtest_path)
-        test_cases = qtest_document.test_cases
-        
-        # Generate test steps
-        generation_result = test_step_service.generate_test_steps(
-            impact_report=impact_report,
-            test_cases=test_cases,
-            generation_mode=request.generation_mode
-        )
-        
-        saved_file_path = None
-        report_id = None
-        
-        # Save to file if requested
-        if request.save_to_file:
-            saved_file_path = test_step_service.save_generated_steps(
-                generation_result, 
-                qtest_file=qtest_path,
-                filename=request.custom_filename
-            )
-            
-            # Also save to report service for retrieval via report endpoints
-            report_id = report_service.save_report(
-                generation_result,
-                "test_steps",
-                request.custom_filename or f"test_steps_{request.generation_mode}"
-            )
-        
-        # Convert to response model
-        response_data = {
-            "success": True,
-            "generation_mode": generation_result["generation_mode"],
-            "summary": generation_result["summary"],
-            "metadata": generation_result["metadata"],
-            "saved_file_path": saved_file_path,
-            "report_id": report_id
-        }
-        
-        if request.generation_mode == "delta":
-            response_data["generated_steps"] = generation_result["generated_steps"]
-        else:
-            response_data["updated_test_cases"] = generation_result["updated_test_cases"]
-            response_data["generated_steps"] = generation_result["generated_steps"]
-        
-        return TestStepGenerationResponse(**response_data)
-        
-    except Exception as e:
-        logger.error(f"Test step generation failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Test step generation failed: {str(e)}"
-        )
 
 
 @app.get("/api/reports", response_model=ReportListResponse)
@@ -941,6 +955,467 @@ async def delete_saved_config(
         )
 
 
+# ============================
+# VERSION TRACKING ENDPOINTS
+# ============================
+
+@app.get("/api/tracked-files")
+async def get_tracked_files(
+    tracking_service: VersionTrackingService = Depends(get_version_tracking_service)
+):
+    """Get all active tracked files from the database"""
+    try:
+        logger.info("Fetching tracked files from database")
+        
+        # Check if service is properly configured
+        if not tracking_service.connection_string:
+            # Return mock data for testing if no database configured
+            logger.warning("Database not configured, returning mock data")
+            return {
+                "success": True,
+                "message": "Mock data - configure database connection",
+                "files": [
+                    {
+                        "id": 1,
+                        "file_name": "STTM_Sample.xlsx",
+                        "friendly_name": "Sample STTM File",
+                        "created_at": "2025-09-01T00:00:00"
+                    }
+                ]
+            }
+        
+        files = tracking_service.get_tracked_files()
+        
+        return {
+            "success": True,
+            "count": len(files),
+            "files": files
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch tracked files: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch tracked files: {str(e)}"
+        )
+
+
+@app.get("/api/tracked-files/{file_id}/comparisons")
+async def get_file_comparisons(
+    file_id: int,
+    tracking_service: VersionTrackingService = Depends(get_version_tracking_service)
+):
+    """Get all comparisons for a specific tracked file with version details"""
+    try:
+        logger.info(f"Fetching comparisons for file {file_id}")
+        
+        # Check if service is properly configured
+        if not tracking_service.connection_string:
+            # Return mock data for testing
+            logger.warning("Database not configured, returning mock data")
+            return {
+                "success": True,
+                "message": "Mock data - configure database connection",
+                "file_id": file_id,
+                "comparisons": [
+                    {
+                        "comparison_id": 1,
+                        "comparison_title": "Version 1 vs Version 2",
+                        "from_sequence": 1,
+                        "from_sharepoint_version": "1.0",
+                        "from_modified": "2025-09-01T10:00:00",
+                        "to_sequence": 2,
+                        "to_sharepoint_version": "2.0",
+                        "to_modified": "2025-09-01T11:00:00",
+                        "total_changes": 5,
+                        "added_mappings": 2,
+                        "modified_mappings": 2,
+                        "deleted_mappings": 1,
+                        "comparison_taken_at": "2025-09-01T12:00:00"
+                    }
+                ]
+            }
+        
+        comparisons = tracking_service.get_file_comparisons(file_id)
+        
+        return {
+            "success": True,
+            "file_id": file_id,
+            "count": len(comparisons),
+            "comparisons": comparisons
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch comparisons for file {file_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch comparisons: {str(e)}"
+        )
+
+
+@app.post("/api/analyze-impact-from-comparison")
+async def analyze_impact_from_comparison(
+    comparison_id: int = Query(...),
+    tracking_service: VersionTrackingService = Depends(get_version_tracking_service),
+    blob_service: AzureBlobService = Depends(get_azure_blob_service),
+    analysis_service: AnalysisService = Depends(get_analysis_service),
+    optimize_response: bool = True
+):
+    """Run impact analysis using a comparison from database and QTest from Azure Blob"""
+    try:
+        logger.info(f"Starting impact analysis with comparison {comparison_id}")
+        
+        # Get comparison details from database
+        comparison = tracking_service.get_comparison_details(comparison_id)
+        if not comparison:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Comparison {comparison_id} not found"
+            )
+        
+        # Fetch JSON from Azure Blob
+        json_url = comparison.get('json_report_url')
+        local_path = comparison.get('local_json_path')
+        
+        if not json_url:
+            raise HTTPException(
+                status_code=400,
+                detail="Comparison does not have a JSON report URL"
+            )
+        
+        logger.info("Fetching comparison JSON from Azure Blob")
+        json_content = blob_service.fetch_comparison_json(json_url, local_path)
+        
+        # Validate JSON structure
+        if not blob_service.validate_json_structure(json_content):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid JSON structure in comparison"
+            )
+        
+        # Import Path for file operations
+        from pathlib import Path
+        import json
+        import tempfile
+        
+        # Create temporary STTM JSON file from fetched content
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_sttm:
+            json.dump(json_content, temp_sttm)
+            temp_sttm_path = temp_sttm.name
+        
+        try:
+            # Copy the JSON to input_files/sttm temporarily
+            sttm_dir = Path(__file__).parent.parent / "input_files" / "sttm"
+            sttm_dir.mkdir(parents=True, exist_ok=True)
+            
+            temp_sttm_name = f"comparison_{comparison_id}_temp.json"
+            sttm_file_path = sttm_dir / temp_sttm_name
+            
+            with open(sttm_file_path, 'w') as f:
+                json.dump(json_content, f)
+            
+            # Get QTest file from Azure Blob Storage
+            qtest_reader = QTestBlobReaderService()
+            qtest_success, qtest_temp_path, qtest_error = qtest_reader.get_qtest_from_comparison(comparison_id)
+            
+            if not qtest_success:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Failed to get QTest file: {qtest_error}"
+                )
+            
+            # Get just the filename from the temp path for the existing logic
+            qtest_filename = Path(qtest_temp_path).name
+            
+            # Run analysis using filename (same as original endpoint)
+            result = analysis_service.run_impact_analysis(
+                sttm_file=temp_sttm_name,
+                qtest_file=qtest_filename,
+                config=None,
+                include_html_in_response=False
+            )
+            
+            # Add comparison info and temp file names to result for reuse in test generation
+            result['comparison_info'] = {
+                'comparison_id': comparison_id,
+                'comparison_title': comparison.get('comparison_title'),
+                'file_name': comparison.get('file_friendly_name')
+            }
+            
+            # Add temp file names for reuse in test generation (don't clean them up)
+            result['temp_files'] = {
+                'sttm_file': temp_sttm_name,
+                'qtest_file': qtest_filename
+            }
+            
+            # Optimize response for large reports (same as original endpoint)
+            if optimize_response:
+                return response_optimizer.optimize_response(result, compression=True)
+            else:
+                return ImpactAnalysisResponse(**result)
+            
+        finally:
+            # Cleanup temporary files
+            import os
+            if os.path.exists(temp_sttm_path):
+                os.unlink(temp_sttm_path)
+            if sttm_file_path.exists():
+                sttm_file_path.unlink()
+            # Cleanup QTest temp file from Azure
+            if 'qtest_temp_path' in locals() and qtest_temp_path:
+                qtest_reader.cleanup_temp_file(qtest_temp_path)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Impact analysis from comparison failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analysis failed: {str(e)}"
+        )
+
+
+@app.post("/api/qtest/upload-validate/{comparison_id}")
+async def upload_validate_qtest_new(
+    comparison_id: int,
+    file: UploadFile = File(...)
+):
+    """
+    NEW endpoint for QTest upload with validation and Azure Blob storage
+    Completely independent implementation - no reuse of existing code
+    """
+    try:
+        logger.info(f"NEW QTest upload for comparison {comparison_id}: {file.filename}")
+        
+        # Check Azure configuration before initializing service
+        azure_storage_conn = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+        if not azure_storage_conn:
+            logger.error("Azure Storage connection string not configured")
+            return {
+                "success": False,
+                "comparison_id": comparison_id,
+                "validation": {
+                    "valid": False,
+                    "errors": ["Azure Storage connection not configured. Please check AZURE_STORAGE_CONNECTION_STRING environment variable."],
+                    "warnings": []
+                },
+                "blob_url": None,
+                "comparison_updated": False,
+                "error": "Azure Storage connection not configured"
+            }
+        
+        # Initialize the new QTest Azure service
+        qtest_service = QTestAzureService()
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Process the upload (validate, upload to blob, update database)
+        result = qtest_service.process_qtest_upload(
+            file_content=file_content,
+            filename=file.filename,
+            comparison_id=comparison_id
+        )
+        
+        # Return comprehensive response
+        return {
+            "success": result["success"],
+            "comparison_id": comparison_id,
+            "validation": result["validation"],
+            "blob_url": result["blob_url"],
+            "comparison_updated": result["database_updated"],
+            "error": result.get("error")
+        }
+        
+    except Exception as e:
+        logger.error(f"NEW QTest upload failed: {e}")
+        
+        # Return structured error response instead of HTTP exception
+        return {
+            "success": False,
+            "comparison_id": comparison_id,
+            "validation": {
+                "valid": False,
+                "errors": [f"Upload failed: {str(e)}"],
+                "warnings": []
+            },
+            "blob_url": None,
+            "comparison_updated": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/generate/test-steps-from-comparison", response_model=TestStepGenerationResponse)
+async def generate_test_steps_from_comparison(
+    comparison_id: int = Query(...),
+    generation_mode: str = Query(...),
+    tracking_service: VersionTrackingService = Depends(get_version_tracking_service),
+    blob_service: AzureBlobService = Depends(get_azure_blob_service),
+    analysis_service: AnalysisService = Depends(get_analysis_service),
+    test_step_service: TestStepService = Depends(get_test_step_service),
+    report_service: ReportService = Depends(get_report_service)
+):
+    """Generate test steps using a comparison from database and QTest from Azure Blob"""
+    try:
+        logger.info(f"Starting test step generation with comparison {comparison_id}, mode: {generation_mode}")
+        
+        # Get comparison details from database
+        comparison = tracking_service.get_comparison_details(comparison_id)
+        if not comparison:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Comparison {comparison_id} not found"
+            )
+        
+        # Fetch JSON from Azure Blob
+        json_url = comparison.get('json_report_url')
+        local_path = comparison.get('local_json_path')
+        
+        if not json_url:
+            raise HTTPException(
+                status_code=400,
+                detail="Comparison does not have a JSON report URL"
+            )
+        
+        logger.info("Fetching comparison JSON from Azure Blob for test step generation")
+        json_content = blob_service.fetch_comparison_json(json_url, local_path)
+        
+        # Validate JSON structure
+        if not blob_service.validate_json_structure(json_content):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid JSON structure in comparison"
+            )
+        
+        # Create temporary STTM JSON file from fetched content
+        import json
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_sttm:
+            json.dump(json_content, temp_sttm)
+            temp_sttm_path = temp_sttm.name
+        
+        try:
+            # Copy the JSON to input_files/sttm temporarily
+            sttm_dir = Path(__file__).parent.parent / "input_files" / "sttm"
+            sttm_dir.mkdir(parents=True, exist_ok=True)
+            
+            temp_sttm_name = f"comparison_{comparison_id}_temp.json"
+            sttm_file_path = sttm_dir / temp_sttm_name
+            
+            with open(sttm_file_path, 'w') as f:
+                json.dump(json_content, f)
+            
+            # Get QTest file from Azure Blob Storage
+            qtest_reader = QTestBlobReaderService()
+            qtest_success, qtest_temp_path, qtest_error = qtest_reader.get_qtest_from_comparison(comparison_id)
+            
+            if not qtest_success:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Failed to get QTest file: {qtest_error}"
+                )
+            
+            # Get just the filename from the temp path for the existing logic
+            qtest_filename = Path(qtest_temp_path).name
+            
+            # First run impact analysis to get the data needed for test step generation
+            analysis_result = analysis_service.run_impact_analysis(
+                sttm_file=temp_sttm_name,
+                qtest_file=qtest_filename,
+                config=None,
+                include_html_in_response=False  # We only need the data structures
+            )
+            
+            # Create analyzers using the same pattern as the working /api/generate/test-steps endpoint
+            from models.impact_models import ImpactAnalysisConfig
+            from analyzers.impact_analyzer import ImpactAnalyzer
+            from parsers.qtest_parser import QTestParser
+            
+            # Use default configuration
+            analysis_config = ImpactAnalysisConfig()
+            
+            # Get file paths using file service
+            from api.services.file_service import FileService
+            file_service = FileService()
+            sttm_path = str(sttm_file_path)
+            qtest_path_str = qtest_temp_path  # Use the temp path directly from Azure
+            
+            # Parse documents and run analysis to get objects (same as working endpoint)
+            analyzer = ImpactAnalyzer(analysis_config, logger)
+            impact_report = analyzer.analyze_impact(sttm_path, qtest_path_str)
+            
+            # Parse qtest document separately to get test cases  
+            qtest_parser = QTestParser(logger)
+            qtest_document = qtest_parser.parse_file(qtest_path_str)
+            test_cases = qtest_document.test_cases
+            
+            # Generate test steps using the exact same call as working endpoint
+            logger.info(f"Generating {generation_mode} test steps")
+            
+            result = test_step_service.generate_test_steps(
+                impact_report=impact_report,
+                test_cases=test_cases,
+                generation_mode=generation_mode
+            )
+            
+            saved_file_path = None
+            report_id = None
+            
+            # Save to file automatically (same as working endpoint)
+            saved_file_path = test_step_service.save_generated_steps(
+                result, 
+                qtest_file=qtest_path_str,
+                filename=f"comparison_{comparison_id}_{generation_mode}"
+            )
+            
+            # Save report to database if service is available (same as working endpoint)
+            try:
+                report_id = report_service.save_report(
+                    result,
+                    "test_steps",
+                    f"comparison_{comparison_id}_{generation_mode}"
+                )
+                logger.info(f"Test step report saved with ID: {report_id}")
+            except Exception as e:
+                logger.warning(f"Failed to save test step report to database: {e}")
+            
+            # Add comparison info and file info to result
+            result['comparison_info'] = {
+                'comparison_id': comparison_id,
+                'comparison_title': comparison.get('comparison_title'),
+                'file_name': comparison.get('file_friendly_name')
+            }
+            
+            # Add file saving info to result
+            if saved_file_path:
+                result['saved_file_path'] = saved_file_path
+            if report_id:
+                result['report_id'] = report_id
+            
+            return TestStepGenerationResponse(**result)
+            
+        finally:
+            # Cleanup temporary files
+            import os
+            if os.path.exists(temp_sttm_path):
+                os.unlink(temp_sttm_path)
+            if sttm_file_path.exists():
+                sttm_file_path.unlink()
+            # Cleanup QTest temp file from Azure
+            if 'qtest_temp_path' in locals() and qtest_temp_path:
+                qtest_reader.cleanup_temp_file(qtest_temp_path)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Test step generation from comparison failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Test step generation failed: {str(e)}"
+        )
+
+
 # Global exception handler
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc: HTTPException):
@@ -963,10 +1438,17 @@ async def general_exception_handler(request, exc: Exception):
 
 if __name__ == "__main__":
     import uvicorn
+    
+    # Get configuration from environment variables
+    host = os.getenv('API_HOST', '127.0.0.1')
+    port = int(os.getenv('API_PORT', '8004'))
+    reload = os.getenv('API_RELOAD', 'True').lower() == 'true'
+    log_level = os.getenv('API_LOG_LEVEL', 'info')
+    
     uvicorn.run(
         "api.main:app",
-        host="127.0.0.1",
-        port=8004,
-        reload=True,
-        log_level="info"
+        host=host,
+        port=port,
+        reload=reload,
+        log_level=log_level
     )

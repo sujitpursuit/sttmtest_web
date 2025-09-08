@@ -3,7 +3,7 @@ API Models - Pydantic models for STTM Impact Analysis API
 Request and response models for all endpoints
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
@@ -134,14 +134,7 @@ class ImpactSummary(BaseModel):
 
 
 # Test Step Generation Models (for Stage 3)
-class TestStepGenerationRequest(BaseModel):
-    """Request for test step generation"""
-    sttm_file: str = Field(..., description="STTM JSON filename from input_files/sttm/")
-    qtest_file: str = Field(..., description="QTEST Excel filename from input_files/qtest/")
-    generation_mode: str = Field("delta", description="'delta' for new steps only, 'in_place' for full test case updates")
-    config: Optional[AnalysisConfig] = None
-    save_to_file: bool = Field(True, description="Save generated steps to output_files directory")
-    custom_filename: Optional[str] = Field(None, description="Custom filename for saved report (without extension)")
+# TestStepGenerationRequest removed - using query parameter approach only
 
 
 class GeneratedTestStep(BaseModel):

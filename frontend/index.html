@@ -5,14 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>STTM Impact Analysis Tool</title>
     
+    <!-- Configuration (must load first) -->
+    <script src="/static/js/config.js"></script>
+    
     <!-- Custom JavaScript (must load before Alpine.js) -->
-    <script src="/frontend/js/app.js"></script>
+    <script src="/static/js/app.js"></script>
     
     <!-- Alpine.js CDN -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/frontend/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
     <div id="app" x-data="sttmApp()" x-init="init()">
@@ -49,87 +52,136 @@
                 </div>
             </div>
 
-            <!-- File Upload Section -->
+            <!-- File Selection Section -->
             <section class="upload-section">
-                <h2>📁 Step 1: Upload Files</h2>
+                <h2>📁 Step 1: Select Comparison & Upload QTest</h2>
                 
-                <!-- STTM File Upload -->
+                <!-- Tracked File Selection -->
                 <div class="file-upload-container">
-                    <h3>STTM JSON File</h3>
-                    <div class="file-drop-zone" 
-                         :class="{'dragover': isDragOver.sttm, 'uploaded': files.sttm}"
-                         @dragover.prevent="isDragOver.sttm = true"
-                         @dragleave="isDragOver.sttm = false"
-                         @drop.prevent="handleFileDrop($event, 'sttm')"
-                         @click="$refs.sttmInput.click()">
-                        
-                        <div x-show="!files.sttm" class="drop-zone-content">
-                            <div class="upload-icon">📄</div>
-                            <p class="drop-text">Drop STTM JSON file here or <span class="click-text">click to browse</span></p>
-                            <p class="file-hint">Accepts: .json files</p>
-                        </div>
-                        
-                        <div x-show="files.sttm" class="file-info">
-                            <div class="file-icon">✅</div>
-                            <div class="file-details">
-                                <p class="file-name" x-text="files.sttm?.name"></p>
-                                <p class="file-size" x-text="formatFileSize(files.sttm?.size)"></p>
-                            </div>
-                            <button @click.stop="removeFile('sttm')" class="remove-file">❌</button>
-                        </div>
-                        
-                        <input type="file" 
-                               x-ref="sttmInput" 
-                               accept=".json" 
-                               @change="handleFileSelect($event, 'sttm')"
-                               style="display: none;">
+                    <h3>📂 Select Tracked File</h3>
+                    
+                    <div class="dropdown-container">
+                        <select x-model="selectedFile?.id" 
+                                @change="selectTrackedFile(parseInt($event.target.value))"
+                                :disabled="isLoading.trackedFiles"
+                                class="tracked-file-dropdown">
+                            <option value="">
+                                <span x-show="isLoading.trackedFiles">⏳ Loading tracked files...</span>
+                                <span x-show="!isLoading.trackedFiles">Select a tracked file...</span>
+                            </option>
+                            <template x-for="file in trackedFiles" :key="file.id">
+                                <option :value="file.id" x-text="file.friendly_name"></option>
+                            </template>
+                        </select>
                     </div>
                     
-                    <div x-show="validationResults.sttm" class="validation-result">
-                        <div :class="validationResults.sttm && validationResults.sttm.valid ? 'validation-success' : 'validation-error'">
-                            <span x-text="validationResults.sttm ? validationResults.sttm.message : ''"></span>
+                    <div x-show="selectedFile" class="selected-file-info">
+                        <div class="info-card">
+                            <h4>📄 Selected File</h4>
+                            <p><strong>Name:</strong> <span x-text="selectedFile?.file_name"></span></p>
+                            <p><strong>Friendly Name:</strong> <span x-text="selectedFile?.friendly_name"></span></p>
+                            <p><strong>Created:</strong> <span x-text="formatDate(selectedFile?.created_at)"></span></p>
                         </div>
                     </div>
                 </div>
 
-                <!-- QTest File Upload -->
-                <div class="file-upload-container">
-                    <h3>QTest Excel File</h3>
-                    <div class="file-drop-zone" 
-                         :class="{'dragover': isDragOver.qtest, 'uploaded': files.qtest}"
-                         @dragover.prevent="isDragOver.qtest = true"
-                         @dragleave="isDragOver.qtest = false"
-                         @drop.prevent="handleFileDrop($event, 'qtest')"
-                         @click="$refs.qtestInput.click()">
-                        
-                        <div x-show="!files.qtest" class="drop-zone-content">
-                            <div class="upload-icon">📊</div>
-                            <p class="drop-text">Drop QTest Excel file here or <span class="click-text">click to browse</span></p>
-                            <p class="file-hint">Accepts: .xlsx, .xls files</p>
-                        </div>
-                        
-                        <div x-show="files.qtest" class="file-info">
-                            <div class="file-icon">✅</div>
-                            <div class="file-details">
-                                <p class="file-name" x-text="files.qtest?.name"></p>
-                                <p class="file-size" x-text="formatFileSize(files.qtest?.size)"></p>
-                            </div>
-                            <button @click.stop="removeFile('qtest')" class="remove-file">❌</button>
-                        </div>
-                        
-                        <input type="file" 
-                               x-ref="qtestInput" 
-                               accept=".xlsx,.xls" 
-                               @change="handleFileSelect($event, 'qtest')"
-                               style="display: none;">
+                <!-- Version Comparison Selection -->
+                <div class="file-upload-container" x-show="selectedFile">
+                    <h3>🔍 Select Version Comparison</h3>
+                    
+                    <div x-show="isLoading.comparisons" class="loading-message">
+                        ⏳ Loading comparisons...
                     </div>
                     
-                    <div x-show="validationResults.qtest" class="validation-result">
-                        <div :class="validationResults.qtest && validationResults.qtest.valid ? 'validation-success' : 'validation-error'">
-                            <span x-text="validationResults.qtest ? validationResults.qtest.message : ''"></span>
+                    <div x-show="!isLoading.comparisons && comparisons.length === 0 && selectedFile" class="no-data-message">
+                        📭 No comparisons found for this file.
+                    </div>
+                    
+                    <div x-show="!isLoading.comparisons && comparisons.length > 0" class="comparisons-grid">
+                        <template x-for="comparison in comparisons" :key="comparison.comparison_id">
+                            <div class="comparison-card"
+                                 :class="{'selected': selectedComparison?.comparison_id === comparison.comparison_id}"
+                                 @click="selectComparison(comparison.comparison_id)">
+                                
+                                <div class="card-header">
+                                    <h4 x-text="comparison.comparison_title"></h4>
+                                    <div class="card-badge" x-text="comparison.comparison_status"></div>
+                                </div>
+                                
+                                <div class="card-content">
+                                    <div class="version-info">
+                                        <div class="version-pair">
+                                            <div class="version-block">
+                                                <span class="version-label">From:</span>
+                                                <span class="version-text" x-text="`v${comparison.from_sharepoint_version} (#${comparison.from_sequence})`"></span>
+                                                <span class="version-date" x-text="formatDate(comparison.from_modified)"></span>
+                                            </div>
+                                            <div class="version-arrow">→</div>
+                                            <div class="version-block">
+                                                <span class="version-label">To:</span>
+                                                <span class="version-text" x-text="`v${comparison.to_sharepoint_version} (#${comparison.to_sequence})`"></span>
+                                                <span class="version-date" x-text="formatDate(comparison.to_modified)"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="changes-summary">
+                                        <div class="changes-total">
+                                            <span class="changes-number" x-text="comparison.total_changes"></span>
+                                            <span class="changes-label">Total Changes</span>
+                                        </div>
+                                        <div class="changes-breakdown">
+                                            <span class="change-item added" x-text="`+${comparison.added_mappings}`"></span>
+                                            <span class="change-item modified" x-text="`~${comparison.modified_mappings}`"></span>
+                                            <span class="change-item deleted" x-text="`-${comparison.deleted_mappings}`"></span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="comparison-meta">
+                                        <p class="comparison-date">📅 <span x-text="formatDate(comparison.comparison_taken_at)"></span></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="card-footer">
+                                    <span x-show="selectedComparison?.comparison_id === comparison.comparison_id" class="selected-indicator">✅ Selected</span>
+                                    <span x-show="selectedComparison?.comparison_id !== comparison.comparison_id" class="click-to-select">Click to select</span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div x-show="selectedComparison" class="selected-comparison-info">
+                        <div class="info-card selected">
+                            <h4>✅ Selected Comparison</h4>
+                            <p><strong>Title:</strong> <span x-text="selectedComparison?.comparison_title"></span></p>
+                            <p><strong>Versions:</strong> <span x-text="formatVersionDisplay(selectedComparison)"></span></p>
+                            <p><strong>Changes:</strong> <span x-text="selectedComparison?.total_changes"></span> total</p>
+                        </div>
+                    </div>
+                    
+                    <!-- NEW: Azure QTest Upload Section -->
+                    <div x-show="selectedComparison" class="azure-qtest-section">
+                        <div class="info-card">
+                            <h4>📊 Upload QTest File to Azure</h4>
+                            <div x-show="!hasQTestInAzure()">
+                                <p>Upload QTest file for this comparison (will be stored in Azure Blob Storage)</p>
+                                <input type="file" 
+                                       accept=".xlsx,.xls" 
+                                       @change="uploadQTestToAzure($event)"
+                                       :disabled="isLoading.upload"
+                                       class="file-input-azure">
+                                <span x-show="isLoading.upload" class="loading-text">⏳ Uploading and validating...</span>
+                            </div>
+                            <div x-show="hasQTestInAzure()" class="qtest-uploaded-info">
+                                <p class="success-message">✅ QTest file uploaded to Azure</p>
+                                <p><strong>Test Cases:</strong> <span x-text="qtestBlobInfo?.validation?.test_cases || 0"></span></p>
+                                <p><strong>Worksheets:</strong> <span x-text="qtestBlobInfo?.validation?.worksheets || 0"></span></p>
+                                <button @click="qtestBlobInfo = null" class="btn btn-small">Upload Different File</button>
+                            </div>
                         </div>
                     </div>
                 </div>
+
             </section>
 
             <!-- Action Buttons Section -->
@@ -150,7 +202,7 @@
                         <span x-show="workflow.filesValidated && !isLoading.validation">✅ Files Validated</span>
                     </button>
                     <p class="action-hint" x-show="!canValidateFiles() && !workflow.filesValidated">
-                        Please upload both STTM JSON and QTest Excel files
+                        Please select a version comparison and upload QTest Excel file
                     </p>
                 </div>
 
@@ -316,6 +368,7 @@
         <footer class="footer">
             <div class="container">
                 <p>&copy; 2025 STTM Impact Analysis Tool - Phase 1: File Upload & Validation</p>
+                <p class="version-info" x-show="versionInfo" x-text="versionInfo"></p>
             </div>
         </footer>
     </div>

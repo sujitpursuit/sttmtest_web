@@ -14,9 +14,21 @@ function sttmApp() {
         
         // File Management
         files: {
-            sttm: null,
+            sttm: null,  // Keep for backward compatibility
             qtest: null
         },
+        
+        // Uploaded file info (for Chrome fix)
+        uploadedQTestFile: null, // Will store {filename, file_size} after upload
+        
+        // NEW: QTest Azure blob info for selected comparison
+        qtestBlobInfo: null, // Will store {blob_url, validation_details} after successful upload
+        
+        // Version Tracking State
+        trackedFiles: [],
+        selectedFile: null,
+        comparisons: [],
+        selectedComparison: null,
         
         // Drag and Drop State
         isDragOver: {
@@ -35,11 +47,16 @@ function sttmApp() {
             validation: false,
             upload: false,
             analysis: false,
-            generation: false
+            generation: false,
+            trackedFiles: false,
+            comparisons: false
         },
         
         // Current generation type
         generationType: null,
+        
+        // Version information
+        versionInfo: null,
         
         // Analysis results
         analysisResult: null,
@@ -61,17 +78,19 @@ function sttmApp() {
         successMessage: '',
         
         // API Configuration
-        apiBaseUrl: `${window.location.protocol}//${window.location.host}`,
+        apiBaseUrl: typeof CONFIG !== 'undefined' ? CONFIG.API_BASE_URL : `${window.location.protocol}//${window.location.host}`,
         
         /**
          * Initialize the application
          * Called when Alpine.js component is mounted
          */
         init() {
-            console.log('STTM App initialized - Phase 1');
+            console.log('STTM App initialized - Stage 2');
             console.log('Alpine.js is working! Click handlers should work now.');
             this.loadFromStorage();
             this.updateWorkflowState();
+            this.loadTrackedFiles(); // Load tracked files on init
+            this.loadVersionInfo(); // Load version information
         },
         
         /**
@@ -104,7 +123,7 @@ function sttmApp() {
          * @param {File} file - The uploaded file
          * @param {string} fileType - 'sttm' or 'qtest'
          */
-        processFile(file, fileType) {
+        async processFile(file, fileType) {
             // Client-side validation
             const validation = this.validateFile(file, fileType);
             
@@ -113,15 +132,59 @@ function sttmApp() {
                 return;
             }
             
-            // Store the file
-            this.files[fileType] = file;
-            this.validationResults[fileType] = null; // Clear previous validation
+            // For QTest files, upload immediately to avoid Chrome ERR_UPLOAD_FILE_CHANGED
+            if (fileType === 'qtest') {
+                try {
+                    this.isLoading.upload = true;
+                    console.log('Uploading QTest file immediately to prevent Chrome issue...');
+                    
+                    const uploadFormData = new FormData();
+                    uploadFormData.append('file', file);
+                    
+                    const uploadResponse = await fetch(`${this.apiBaseUrl}/api/upload/qtest`, {
+                        method: 'POST',
+                        body: uploadFormData
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                        const error = await uploadResponse.json();
+                        throw new Error(error.detail || 'QTest file upload failed');
+                    }
+                    
+                    const uploadResult = await uploadResponse.json();
+                    console.log('QTest upload successful:', uploadResult);
+                    
+                    // Store upload info instead of file object
+                    this.uploadedQTestFile = {
+                        filename: uploadResult.filename,
+                        file_size: uploadResult.file_size,
+                        original_name: file.name
+                    };
+                    
+                    // Still store file reference for display purposes only
+                    this.files[fileType] = file;
+                    this.validationResults[fileType] = null;
+                    
+                    this.showSuccess(`QTest file "${file.name}" uploaded successfully`);
+                    
+                } catch (error) {
+                    console.error('QTest upload error:', error);
+                    this.showError(`Failed to upload QTest file: ${error.message}`);
+                    return;
+                } finally {
+                    this.isLoading.upload = false;
+                }
+            } else {
+                // For non-QTest files, store normally
+                this.files[fileType] = file;
+                this.validationResults[fileType] = null; // Clear previous validation
+            }
             
             // Update workflow state
             this.updateWorkflowState();
             this.saveToStorage();
             
-            console.log(`${fileType.toUpperCase()} file uploaded:`, file.name);
+            console.log(`${fileType.toUpperCase()} file processed:`, file.name);
         },
         
         /**
@@ -185,7 +248,7 @@ function sttmApp() {
          */
         async validateFiles() {
             if (!this.canValidateFiles()) {
-                this.showError('Please upload both files before validation');
+                this.showError('Please select a comparison and upload QTest file before validation');
                 return;
             }
             
@@ -193,23 +256,27 @@ function sttmApp() {
             this.clearMessages();
             
             try {
-                // Validate STTM file
-                const sttmValidation = await this.validateSingleFile('sttm');
+                // Validate comparison selection
+                if (!this.selectedComparison) {
+                    throw new Error('No comparison selected');
+                }
+                
+                // Validate that comparison has JSON data available
+                if (!this.selectedComparison.json_report_url) {
+                    throw new Error('Selected comparison does not have JSON data available');
+                }
                 
                 // Validate QTest file
                 const qtestValidation = await this.validateSingleFile('qtest');
                 
-                // Check if both validations passed
-                if (sttmValidation.valid && qtestValidation.valid) {
+                // Check validation results
+                if (qtestValidation.valid) {
                     this.workflow.filesValidated = true;
                     this.currentStep = 2;
-                    this.showSuccess('✅ Both files validated successfully! Ready for analysis.');
+                    this.showSuccess(`✅ Ready for analysis! Selected comparison: ${this.selectedComparison.comparison_title} with ${this.selectedComparison.total_changes} changes.`);
                     this.saveToStorage();
                 } else {
-                    const errors = [];
-                    if (!sttmValidation.valid) errors.push(`STTM: ${sttmValidation.message}`);
-                    if (!qtestValidation.valid) errors.push(`QTest: ${qtestValidation.message}`);
-                    this.showError(`Validation failed: ${errors.join(', ')}`);
+                    this.showError(`Validation failed - QTest: ${qtestValidation.message}`);
                 }
                 
             } catch (error) {
@@ -286,13 +353,6 @@ function sttmApp() {
             }
         },
         
-        /**
-         * Check if files can be validated
-         * @returns {boolean} True if both files are uploaded
-         */
-        canValidateFiles() {
-            return this.workflow.filesUploaded && !this.isLoading.validation;
-        },
         
         /**
          * Format file size for display
@@ -410,7 +470,7 @@ function sttmApp() {
         },
         
         /**
-         * Analyze impact between STTM and QTest
+         * Analyze impact between STTM and QTest - Two-step process
          */
         async analyzeImpact() {
             if (!this.workflow.filesValidated || this.workflow.impactAnalyzed) {
@@ -421,23 +481,25 @@ function sttmApp() {
             this.clearMessages();
             
             try {
-                // Get the file names from validation results
-                const sttmFile = this.validationResults.sttm?.details?.filename || this.files.sttm?.name;
-                const qtestFile = this.validationResults.qtest?.details?.filename || this.files.qtest?.name;
-                
-                if (!sttmFile || !qtestFile) {
-                    throw new Error('File names not found in validation results');
+                // Validate required data
+                if (!this.selectedComparison) {
+                    throw new Error('No comparison selected');
                 }
                 
-                const response = await fetch(`${this.apiBaseUrl}/api/analyze-impact`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        sttm_file: sttmFile,
-                        qtest_file: qtestFile
-                    })
+                if (!this.qtestBlobInfo) {
+                    throw new Error('No QTest file uploaded to Azure');
+                }
+                
+                // Using QTest file from Azure blob storage
+                console.log('Using QTest file from Azure blob storage');
+                
+                // Run analysis with comparison_id (QTest will be fetched from Azure)
+                console.log('Running impact analysis...');
+                const analysisUrl = new URL(`${this.apiBaseUrl}/api/analyze-impact-from-comparison`);
+                analysisUrl.searchParams.append('comparison_id', this.selectedComparison.comparison_id);
+                
+                const response = await fetch(analysisUrl, {
+                    method: 'POST'
                 });
                 
                 if (!response.ok) {
@@ -495,19 +557,26 @@ function sttmApp() {
             this.clearMessages();
             
             try {
-                const sttmFile = this.validationResults.sttm?.details?.filename || this.files.sttm?.name;
-                const qtestFile = this.validationResults.qtest?.details?.filename || this.files.qtest?.name;
+                // Validate required data for comparison-based generation
+                if (!this.selectedComparison) {
+                    throw new Error('No comparison selected');
+                }
                 
-                const response = await fetch(`${this.apiBaseUrl}/api/generate/test-steps`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        sttm_file: sttmFile,
-                        qtest_file: qtestFile,
-                        generation_mode: mode
-                    })
+                if (!this.qtestBlobInfo) {
+                    throw new Error('No QTest file uploaded to Azure');
+                }
+                
+                // Using QTest file from Azure blob storage
+                console.log('Using QTest file from Azure blob storage');
+                
+                // Generate test steps with comparison_id (QTest will be fetched from Azure)
+                console.log('Generating test steps...');
+                const generationUrl = new URL(`${this.apiBaseUrl}/api/generate/test-steps-from-comparison`);
+                generationUrl.searchParams.append('comparison_id', this.selectedComparison.comparison_id);
+                generationUrl.searchParams.append('generation_mode', mode);
+                
+                const response = await fetch(generationUrl, {
+                    method: 'POST'
                 });
                 
                 if (!response.ok) {
@@ -621,11 +690,289 @@ function sttmApp() {
         },
 
         /**
+         * Load tracked files from API
+         */
+        async loadTrackedFiles() {
+            try {
+                this.isLoading.trackedFiles = true;
+                console.log('Loading tracked files...');
+                
+                const response = await fetch(`${this.apiBaseUrl}/api/tracked-files`);
+                const data = await response.json();
+                
+                if (data.success && data.files) {
+                    this.trackedFiles = data.files;
+                    console.log(`Loaded ${data.files.length} tracked files`);
+                } else {
+                    throw new Error('Failed to load tracked files');
+                }
+                
+            } catch (error) {
+                console.error('Error loading tracked files:', error);
+                this.showError('Failed to load tracked files: ' + error.message);
+            } finally {
+                this.isLoading.trackedFiles = false;
+            }
+        },
+        
+        /**
+         * Load application version information
+         */
+        async loadVersionInfo() {
+            try {
+                console.log('Loading version information...');
+                
+                const response = await fetch(`${this.apiBaseUrl}/api/version`);
+                const data = await response.json();
+                
+                if (data.success && data.version_info) {
+                    const version = data.version_info;
+                    this.versionInfo = `v${version.version} (${version.build_date}) [${version.build_hash}]`;
+                    console.log('Version loaded:', this.versionInfo);
+                } else {
+                    console.warn('Failed to load version info');
+                    this.versionInfo = 'v1.0.1 (unknown)';
+                }
+                
+            } catch (error) {
+                console.error('Error loading version info:', error);
+                this.versionInfo = 'v1.0.1 (error)';
+            }
+        },
+        
+        /**
+         * Handle tracked file selection
+         * @param {number} fileId - Selected file ID
+         */
+        async selectTrackedFile(fileId) {
+            try {
+                // Find the selected file
+                const file = this.trackedFiles.find(f => f.id === fileId);
+                if (!file) {
+                    this.showError('Selected file not found');
+                    return;
+                }
+                
+                this.selectedFile = file;
+                this.selectedComparison = null; // Reset comparison selection
+                this.comparisons = []; // Clear previous comparisons
+                
+                console.log(`Selected tracked file: ${file.friendly_name}`);
+                
+                // Load comparisons for this file
+                await this.loadFileComparisons(fileId);
+                
+            } catch (error) {
+                console.error('Error selecting tracked file:', error);
+                this.showError('Failed to select tracked file: ' + error.message);
+            }
+        },
+        
+        /**
+         * Load comparisons for a specific file
+         * @param {number} fileId - File ID to load comparisons for
+         */
+        async loadFileComparisons(fileId) {
+            try {
+                this.isLoading.comparisons = true;
+                console.log(`Loading comparisons for file ${fileId}...`);
+                
+                const response = await fetch(`${this.apiBaseUrl}/api/tracked-files/${fileId}/comparisons`);
+                const data = await response.json();
+                
+                if (data.success && data.comparisons) {
+                    this.comparisons = data.comparisons;
+                    console.log(`Loaded ${data.comparisons.length} comparisons`);
+                } else {
+                    throw new Error('Failed to load comparisons');
+                }
+                
+            } catch (error) {
+                console.error('Error loading comparisons:', error);
+                this.showError('Failed to load comparisons: ' + error.message);
+            } finally {
+                this.isLoading.comparisons = false;
+            }
+        },
+        
+        /**
+         * Select a comparison
+         * @param {number} comparisonId - Selected comparison ID
+         */
+        selectComparison(comparisonId) {
+            const comparison = this.comparisons.find(c => c.comparison_id === comparisonId);
+            if (!comparison) {
+                this.showError('Selected comparison not found');
+                return;
+            }
+            
+            this.selectedComparison = comparison;
+            console.log(`Selected comparison: ${comparison.comparison_title}`);
+            
+            // Update workflow state
+            this.updateWorkflowState();
+        },
+        
+        /**
+         * Check if files are ready for validation (new logic)
+         */
+        canValidateFiles() {
+            // New logic: need selected comparison + QTest file uploaded to Azure
+            return this.selectedComparison && this.qtestBlobInfo;
+        },
+        
+        /**
+         * Format version display text
+         * @param {Object} comparison - Comparison object
+         * @returns {string} Formatted version text
+         */
+        formatVersionDisplay(comparison) {
+            if (!comparison) return '';
+            return `v${comparison.from_sharepoint_version} (${comparison.from_sequence}) → v${comparison.to_sharepoint_version} (${comparison.to_sequence})`;
+        },
+        
+        /**
+         * Format date for display
+         * @param {string} dateString - ISO date string
+         * @returns {string} Formatted date
+         */
+        formatDate(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        },
+
+        /**
          * Reset workflow to initial state
          */
+        /**
+         * NEW: Upload QTest file with validation and Azure Blob storage
+         * Completely new implementation - no reuse of existing code
+         */
+        async uploadQTestToAzure(event) {
+            // Get the file from the input event
+            const file = event.target.files ? event.target.files[0] : null;
+            
+            if (!file) {
+                this.showError('No file selected');
+                return;
+            }
+            
+            // Check if comparison is selected
+            if (!this.selectedComparison) {
+                this.showError('Please select a comparison first');
+                event.target.value = ''; // Reset file input
+                return;
+            }
+            
+            // Validate file type client-side
+            if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+                this.showError('Please select an Excel file (.xlsx or .xls)');
+                event.target.value = ''; // Reset file input
+                return;
+            }
+            
+            // Check file size (10MB limit)
+            if (file.size > 10 * 1024 * 1024) {
+                this.showError('File size exceeds 10MB limit');
+                event.target.value = ''; // Reset file input
+                return;
+            }
+            
+            this.isLoading.upload = true;
+            this.clearMessages();
+            
+            try {
+                console.log(`NEW: Uploading QTest to Azure for comparison ${this.selectedComparison.comparison_id}`);
+                
+                // Create form data
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // Call the new API endpoint
+                const response = await fetch(
+                    `${this.apiBaseUrl}/api/qtest/upload-validate/${this.selectedComparison.comparison_id}`,
+                    {
+                        method: 'POST',
+                        body: formData
+                    }
+                );
+                
+                const result = await response.json();
+                
+                // Debug: Log the full response
+                console.log('NEW: Full API response:', result);
+                
+                if (!response.ok) {
+                    console.error('NEW: HTTP error response:', result);
+                    throw new Error(result.detail || result.error || 'Upload failed');
+                }
+                
+                if (result.success) {
+                    // Store the blob info
+                    this.qtestBlobInfo = {
+                        blob_url: result.blob_url,
+                        validation: result.validation,
+                        comparison_id: result.comparison_id,
+                        upload_time: new Date().toISOString()
+                    };
+                    
+                    // Show validation details
+                    const validation = result.validation;
+                    let message = `QTest uploaded successfully! `;
+                    message += `${validation.worksheets} worksheets, ${validation.test_cases} test cases found.`;
+                    
+                    if (validation.warnings && validation.warnings.length > 0) {
+                        message += ` Warnings: ${validation.warnings.join(', ')}`;
+                    }
+                    
+                    this.showSuccess(message);
+                    
+                    // Mark workflow as ready for analysis
+                    this.workflow.filesValidated = true;
+                    this.currentStep = 2;
+                    
+                    console.log('NEW: QTest uploaded to Azure:', result.blob_url);
+                } else {
+                    // Show validation errors with detailed logging
+                    console.error('NEW: Upload failed, result:', result);
+                    console.error('NEW: Validation details:', result.validation);
+                    
+                    const errors = result.validation?.errors || [];
+                    const errorMsg = result.error || 'Unknown upload error';
+                    
+                    if (errors.length > 0) {
+                        throw new Error(`Validation failed: ${errors.join(', ')}`);
+                    } else {
+                        throw new Error(`Upload failed: ${errorMsg}`);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('NEW: QTest Azure upload error:', error);
+                this.showError(`Failed to upload QTest: ${error.message}`);
+            } finally {
+                this.isLoading.upload = false;
+                // Reset file input
+                event.target.value = '';
+            }
+        },
+        
+        /**
+         * NEW: Check if QTest is uploaded to Azure for current comparison
+         */
+        hasQTestInAzure() {
+            return this.qtestBlobInfo && 
+                   this.qtestBlobInfo.comparison_id === this.selectedComparison?.comparison_id;
+        },
+        
         resetWorkflow() {
             this.files = { sttm: null, qtest: null };
             this.validationResults = { sttm: null, qtest: null };
+            this.selectedFile = null;
+            this.selectedComparison = null;
+            this.comparisons = [];
+            this.qtestBlobInfo = null; // Clear Azure blob info
             this.workflow = {
                 filesUploaded: false,
                 filesValidated: false,
