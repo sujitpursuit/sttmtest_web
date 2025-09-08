@@ -166,8 +166,8 @@ class TestStepGenerationResponse(BaseModel):
     updated_test_cases: Optional[List[Dict[str, Any]]] = None
     summary: TestStepSummary
     metadata: Dict[str, Any]
-    saved_file_path: Optional[str] = None
     report_id: Optional[str] = None
+    blob_urls: Optional[Dict[str, Optional[str]]] = None
 
 
 # Report Management Models

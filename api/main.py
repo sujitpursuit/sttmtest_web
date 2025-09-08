@@ -4,6 +4,7 @@ Stage 1: Foundation & File Management
 """
 
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Query
+from fastapi.responses import Response
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
@@ -1359,26 +1360,91 @@ async def generate_test_steps_from_comparison(
                 generation_mode=generation_mode
             )
             
-            saved_file_path = None
-            report_id = None
+            # STAGE 2: Generate files directly to blob storage
+            import os
+            import tempfile
+            from api.services.output_blob_service import OutputBlobService
+            output_blob_service = OutputBlobService()
             
-            # Save to file automatically (same as working endpoint)
-            saved_file_path = test_step_service.save_generated_steps(
-                result, 
-                qtest_file=qtest_path_str,
-                filename=f"comparison_{comparison_id}_{generation_mode}"
-            )
+            # Create temporary files for processing
+            temp_json_path = None
+            temp_excel_path = None
             
-            # Save report to database if service is available (same as working endpoint)
             try:
-                report_id = report_service.save_report(
-                    result,
-                    "test_steps",
-                    f"comparison_{comparison_id}_{generation_mode}"
+                # Save JSON report temporarily if service is available
+                report_id = None
+                try:
+                    report_id = report_service.save_report(
+                        result,
+                        "test_steps",
+                        f"comparison_{comparison_id}_{generation_mode}"
+                    )
+                    logger.info(f"Test step report saved with ID: {report_id}")
+                    
+                    # Create temporary JSON file
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_json:
+                        import json
+                        json.dump(result, temp_json, indent=2)
+                        temp_json_path = temp_json.name
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to save test step report to database: {e}")
+                
+                # Generate Excel file temporarily
+                saved_excel_path = test_step_service.save_generated_steps(
+                    result, 
+                    qtest_file=qtest_path_str,
+                    filename=f"temp_comparison_{comparison_id}_{generation_mode}"
                 )
-                logger.info(f"Test step report saved with ID: {report_id}")
-            except Exception as e:
-                logger.warning(f"Failed to save test step report to database: {e}")
+                
+                # Create temporary Excel file with the generated content
+                if saved_excel_path and os.path.exists(saved_excel_path):
+                    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_excel:
+                        temp_excel_path = temp_excel.name
+                    
+                    # Copy the generated Excel to our temp file location
+                    import shutil
+                    shutil.copy2(saved_excel_path, temp_excel_path)
+                    # Clean up the generated file from output_files
+                    os.unlink(saved_excel_path)
+                    logger.info("Temporary Excel file created for blob upload")
+                else:
+                    logger.warning("Excel file generation failed")
+                    temp_excel_path = None
+                
+                # Upload to blob storage
+                blob_urls = output_blob_service.upload_test_step_outputs(
+                    comparison_id=comparison_id,
+                    generation_mode=generation_mode,
+                    json_file_path=temp_json_path if temp_json_path else None,
+                    excel_file_path=temp_excel_path if temp_excel_path else None
+                )
+                
+                # Update database with blob URLs
+                if generation_mode == 'delta':
+                    tracking_service.update_delta_outputs(
+                        comparison_id=comparison_id,
+                        json_url=blob_urls.get('json_url'),
+                        excel_url=blob_urls.get('excel_url')
+                    )
+                    logger.info(f"Updated delta blob URLs for comparison {comparison_id}")
+                else:  # inplace/in_place/in-place
+                    tracking_service.update_inplace_outputs(
+                        comparison_id=comparison_id,
+                        json_url=blob_urls.get('json_url'),
+                        excel_url=blob_urls.get('excel_url')
+                    )
+                    logger.info(f"Updated inplace blob URLs for comparison {comparison_id}")
+                
+                # Add blob URLs to result instead of local paths
+                result['blob_urls'] = blob_urls
+                
+            finally:
+                # Clean up temporary files
+                if temp_json_path and os.path.exists(temp_json_path):
+                    os.unlink(temp_json_path)
+                if temp_excel_path and os.path.exists(temp_excel_path):
+                    os.unlink(temp_excel_path)
             
             # Add comparison info and file info to result
             result['comparison_info'] = {
@@ -1387,9 +1453,7 @@ async def generate_test_steps_from_comparison(
                 'file_name': comparison.get('file_friendly_name')
             }
             
-            # Add file saving info to result
-            if saved_file_path:
-                result['saved_file_path'] = saved_file_path
+            # STAGE 2: Add report ID but no local file paths
             if report_id:
                 result['report_id'] = report_id
             
@@ -1413,6 +1477,116 @@ async def generate_test_steps_from_comparison(
         raise HTTPException(
             status_code=500,
             detail=f"Test step generation failed: {str(e)}"
+        )
+
+
+# ============================
+# BLOB FILE SERVING ENDPOINTS
+# ============================
+
+@app.get("/api/test-steps/{comparison_id}/{generation_mode}/excel")
+async def serve_test_step_excel(
+    comparison_id: int,
+    generation_mode: str,
+    tracking_service: VersionTrackingService = Depends(get_version_tracking_service)
+):
+    """Serve test step Excel file from blob storage with authentication"""
+    try:
+        logger.info(f"Serving test step Excel for comparison {comparison_id}, mode: {generation_mode}")
+        
+        # Get blob URLs from database
+        urls = tracking_service.get_output_urls(comparison_id, generation_mode)
+        if not urls or not urls.get('excel_url'):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Excel file not found for comparison {comparison_id} ({generation_mode} mode)"
+            )
+        
+        # Use OutputBlobService to fetch the file
+        from api.services.output_blob_service import OutputBlobService
+        blob_service = OutputBlobService()
+        
+        # Extract blob name from URL
+        excel_url = urls['excel_url']
+        blob_name = '/'.join(excel_url.split('/')[-3:])  # comparison_id/mode/filename
+        
+        # Download file content
+        file_content = blob_service.download_file(blob_name)
+        if not file_content:
+            raise HTTPException(
+                status_code=404,
+                detail="File not found in blob storage"
+            )
+        
+        # Generate filename
+        filename = f"test_steps_{generation_mode}_{comparison_id}.xlsx"
+        
+        return Response(
+            content=file_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving Excel file: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to serve Excel file: {str(e)}"
+        )
+
+
+@app.get("/api/test-steps/{comparison_id}/{generation_mode}/json")
+async def serve_test_step_json(
+    comparison_id: int,
+    generation_mode: str,
+    tracking_service: VersionTrackingService = Depends(get_version_tracking_service)
+):
+    """Serve test step JSON file from blob storage with authentication"""
+    try:
+        logger.info(f"Serving test step JSON for comparison {comparison_id}, mode: {generation_mode}")
+        
+        # Get blob URLs from database
+        urls = tracking_service.get_output_urls(comparison_id, generation_mode)
+        if not urls or not urls.get('json_url'):
+            raise HTTPException(
+                status_code=404,
+                detail=f"JSON file not found for comparison {comparison_id} ({generation_mode} mode)"
+            )
+        
+        # Use OutputBlobService to fetch the file
+        from api.services.output_blob_service import OutputBlobService
+        blob_service = OutputBlobService()
+        
+        # Extract blob name from URL
+        json_url = urls['json_url']
+        blob_name = '/'.join(json_url.split('/')[-3:])  # comparison_id/mode/filename
+        
+        # Download file content
+        file_content = blob_service.download_file(blob_name)
+        if not file_content:
+            raise HTTPException(
+                status_code=404,
+                detail="File not found in blob storage"
+            )
+        
+        # Generate filename
+        filename = f"test_steps_{generation_mode}_{comparison_id}.json"
+        
+        return Response(
+            content=file_content,
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving JSON file: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to serve JSON file: {str(e)}"
         )
 
 

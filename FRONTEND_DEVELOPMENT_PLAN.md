@@ -266,7 +266,160 @@ async uploadFile(fileType, file) {
 
 ---
 
-**Last Updated:** September 6, 2025  
-**Current Phase:** Planning Complete - Ready for Phase 1 Implementation  
-**API Base URL:** http://localhost:8004  
-**Status:** Ready to begin development 🚀
+---
+
+## 🗄️ Blob Storage Integration (Stage 2 Implementation)
+
+### **Overview**
+Implemented blob-first architecture for test step generation outputs. Files are stored in Azure Blob Storage and served through authenticated API endpoints.
+
+### **Frontend Changes**
+
+#### **Report Display Architecture**
+- **Impact Analysis Reports**: Local files served via `/reports/` (HTML/JSON)
+- **Test Step Generation Reports**: Blob storage served via API endpoints
+
+#### **New JavaScript Functions**
+```javascript
+/**
+ * Get API URL for test step Excel file
+ * @param {string} mode - 'delta' or 'in-place'
+ * @returns {string} API endpoint URL
+ */
+getTestStepExcelUrl(mode) {
+    if (!this.selectedComparison) return '#';
+    return `${this.apiBaseUrl}/api/test-steps/${this.selectedComparison.comparison_id}/${mode}/excel`;
+}
+
+/**
+ * Get API URL for test step JSON file  
+ * @param {string} mode - 'delta' or 'in-place'
+ * @returns {string} API endpoint URL
+ */
+getTestStepJsonUrl(mode) {
+    if (!this.selectedComparison) return '#';
+    return `${this.apiBaseUrl}/api/test-steps/${this.selectedComparison.comparison_id}/${mode}/json`;
+}
+```
+
+#### **Updated Data Structure**
+```javascript
+// Test step generation results with blob URLs
+testStepResults: {
+    'delta': {
+        json_url: 'https://stexceldifffiles.blob.core.windows.net/output-files/comparison_10/delta/test_steps_delta_20250908_141014.json',
+        excel_url: 'https://stexceldifffiles.blob.core.windows.net/output-files/comparison_10/delta/test_steps_delta_20250908_141014.xlsx',
+        report_id: 'comparison_10_delta',
+        timestamp: '2025-09-08T14:10:14.767Z',
+        summary: {
+            total_steps_generated: 1,
+            action_breakdown: { ADD: 1, MODIFY: 0, DELETE: 0 }
+        }
+    },
+    'in-place': {
+        // Similar structure for in-place mode
+    }
+}
+```
+
+#### **HTML Template Updates**
+```html
+<!-- Test Step Generation Reports Section -->
+<div class="result-card" x-show="testStepResults && Object.keys(testStepResults).length > 0">
+    <div class="card-icon">📝</div>
+    <div class="card-content">
+        <h3>Test Step Generation Reports</h3>
+        
+        <!-- Delta Reports -->
+        <div class="test-step-reports" x-show="testStepResults.delta">
+            <h4 class="generation-mode">🔄 Delta Mode:</h4>
+            <div class="report-links">
+                <a :href="getTestStepExcelUrl('delta')" 
+                   target="_blank" 
+                   class="report-link"
+                   x-show="testStepResults.delta && testStepResults.delta.excel_url">
+                    📊 View Delta Excel Report
+                </a>
+                <a :href="getTestStepJsonUrl('delta')" 
+                   target="_blank" 
+                   class="report-link"
+                   x-show="testStepResults.delta && testStepResults.delta.json_url">
+                    📥 Download Delta JSON Report
+                </a>
+            </div>
+            <div class="generation-summary" x-show="testStepResults.delta.summary">
+                <small x-text="`Generated ${testStepResults.delta.summary?.total_steps_generated || 0} steps`"></small>
+            </div>
+        </div>
+        
+        <!-- In-Place Reports -->
+        <div class="test-step-reports" x-show="testStepResults['in-place']">
+            <h4 class="generation-mode">📝 In-Place Mode:</h4>
+            <div class="report-links">
+                <a :href="getTestStepExcelUrl('in-place')" 
+                   target="_blank" 
+                   class="report-link"
+                   x-show="testStepResults['in-place'] && testStepResults['in-place'].excel_url">
+                    📊 View In-Place Excel Report
+                </a>
+                <a :href="getTestStepJsonUrl('in-place')" 
+                   target="_blank" 
+                   class="report-link"
+                   x-show="testStepResults['in-place'] && testStepResults['in-place'].json_url">
+                    📥 Download In-Place JSON Report
+                </a>
+            </div>
+            <div class="generation-summary" x-show="testStepResults['in-place'].summary">
+                <small x-text="`Generated ${testStepResults['in-place'].summary?.total_steps_generated || 0} steps`"></small>
+            </div>
+        </div>
+    </div>
+</div>
+```
+
+#### **Removed Redundant Elements**
+- ❌ **Generated Files List**: Removed duplicate download buttons section
+- ✅ **Cleaner UI**: All downloads now organized by generation mode in dedicated reports section
+
+### **User Experience Improvements**
+1. **Clear Separation**: Impact Analysis vs Test Step Generation reports
+2. **Organized by Mode**: Delta and In-Place sections with separate buttons
+3. **Proper Authentication**: Files served through API with Azure credentials
+4. **No Access Errors**: Eliminated "PublicAccessNotPermitted" blob errors
+5. **Generation Summaries**: Shows step counts for each mode
+
+### **CSS Additions**
+```css
+/* Test Step Generation Reports Styles */
+.test-step-reports {
+    margin-bottom: var(--spacing-4);
+}
+
+.test-step-reports:last-child {
+    margin-bottom: 0;
+}
+
+.generation-mode {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: var(--spacing-2);
+    color: var(--primary-color);
+}
+
+.generation-summary {
+    margin-top: var(--spacing-2);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.generation-summary small {
+    font-size: 0.875rem;
+}
+```
+
+---
+
+**Last Updated:** September 8, 2025  
+**Current Phase:** All Phases Complete + Blob Storage Integration ✅  
+**API Base URL:** http://localhost:8000  
+**Status:** Production Ready with Azure Blob Storage 🚀

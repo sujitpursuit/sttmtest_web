@@ -278,19 +278,71 @@
                     <div class="result-card" x-show="analysisResult && analysisResult.report_links">
                         <div class="card-icon">📄</div>
                         <div class="card-content">
-                            <h3>Generated Reports</h3>
+                            <h3>Impact Analysis Reports</h3>
                             <div class="report-links">
                                 <a :href="analysisResult && analysisResult.report_links && analysisResult.report_links.html_url ? analysisResult.report_links.html_url : ''" 
                                    target="_blank" 
                                    class="report-link"
                                    x-show="analysisResult && analysisResult.report_links && analysisResult.report_links.html_url">
-                                    🌐 View HTML Report
+                                    🌐 View Impact HTML Report
                                 </a>
                                 <button @click="downloadJSON()" 
                                         class="btn btn-secondary"
                                         x-show="analysisResult && analysisResult.report_links && analysisResult.report_links.json_url">
-                                    📥 Download JSON Report
+                                    📥 Download Impact JSON Report
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Test Step Generation Reports -->
+                    <div class="result-card" x-show="testStepResults && Object.keys(testStepResults).length > 0">
+                        <div class="card-icon">📝</div>
+                        <div class="card-content">
+                            <h3>Test Step Generation Reports</h3>
+                            
+                            <!-- Delta Reports -->
+                            <div class="test-step-reports" x-show="testStepResults.delta">
+                                <h4 class="generation-mode">🔄 Delta Mode:</h4>
+                                <div class="report-links">
+                                    <a :href="getTestStepExcelUrl('delta')" 
+                                       target="_blank" 
+                                       class="report-link"
+                                       x-show="testStepResults.delta && testStepResults.delta.excel_url">
+                                        📈 View Delta Excel Report
+                                    </a>
+                                    <a :href="getTestStepJsonUrl('delta')" 
+                                       target="_blank" 
+                                       class="report-link"
+                                       x-show="testStepResults.delta && testStepResults.delta.json_url">
+                                        📥 Download Delta JSON Report
+                                    </a>
+                                </div>
+                                <div class="generation-summary" x-show="testStepResults.delta.summary">
+                                    <small x-text="`Generated ${testStepResults.delta.summary?.total_steps_generated || 0} steps`"></small>
+                                </div>
+                            </div>
+                            
+                            <!-- In-Place Reports -->
+                            <div class="test-step-reports" x-show="testStepResults['in-place']">
+                                <h4 class="generation-mode">📝 In-Place Mode:</h4>
+                                <div class="report-links">
+                                    <a :href="getTestStepExcelUrl('in-place')" 
+                                       target="_blank" 
+                                       class="report-link"
+                                       x-show="testStepResults['in-place'] && testStepResults['in-place'].excel_url">
+                                        📈 View In-Place Excel Report
+                                    </a>
+                                    <a :href="getTestStepJsonUrl('in-place')" 
+                                       target="_blank" 
+                                       class="report-link"
+                                       x-show="testStepResults['in-place'] && testStepResults['in-place'].json_url">
+                                        📥 Download In-Place JSON Report
+                                    </a>
+                                </div>
+                                <div class="generation-summary" x-show="testStepResults['in-place'].summary">
+                                    <small x-text="`Generated ${testStepResults['in-place'].summary?.total_steps_generated || 0} steps`"></small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -325,23 +377,6 @@
                     </div>
                 </div>
                 
-                <!-- Generated Files List -->
-                <div class="generated-files" x-show="generatedFiles.length > 0">
-                    <h3>📁 Generated Test Files</h3>
-                    <div class="file-list">
-                        <template x-for="file in generatedFiles" :key="file.file">
-                            <div class="generated-file-item">
-                                <span class="file-type" x-text="file.mode === 'delta' ? '🔄 Delta:' : '📝 In-Place:'"></span>
-                                <span class="file-name" x-text="file.file"></span>
-                                <a :href="`/output_files/${file.file}`" 
-                                   download 
-                                   class="download-link">
-                                    📥 Download
-                                </a>
-                            </div>
-                        </template>
-                    </div>
-                </div>
             </section>
 
             <!-- Error Display -->

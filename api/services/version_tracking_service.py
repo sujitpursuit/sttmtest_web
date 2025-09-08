@@ -222,6 +222,179 @@ class VersionTrackingService:
             logger.error(f"Error fetching comparison {comparison_id}: {e}")
             raise
     
+    def update_delta_outputs(self, comparison_id: int, json_url: str = None, excel_url: str = None) -> bool:
+        """
+        Update delta mode output URLs in database
+        
+        Args:
+            comparison_id: ID of the comparison
+            json_url: URL of JSON file in blob storage
+            excel_url: URL of Excel file in blob storage
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Build dynamic update query based on provided URLs
+                updates = []
+                params = []
+                
+                if json_url:
+                    updates.append("delta_json_url = ?")
+                    params.append(json_url)
+                
+                if excel_url:
+                    updates.append("delta_excel_url = ?")
+                    params.append(excel_url)
+                
+                if updates:
+                    updates.append("delta_generated_at = GETDATE()")
+                    params.append(comparison_id)
+                    
+                    query = f"""
+                    UPDATE version_comparisons 
+                    SET {', '.join(updates)}
+                    WHERE id = ?
+                    """
+                    
+                    cursor.execute(query, *params)
+                    conn.commit()
+                    
+                    logger.info(f"Updated delta outputs for comparison {comparison_id}")
+                    return cursor.rowcount > 0
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error updating delta outputs: {e}")
+            return False
+    
+    def update_inplace_outputs(self, comparison_id: int, json_url: str = None, excel_url: str = None) -> bool:
+        """
+        Update in-place mode output URLs in database
+        
+        Args:
+            comparison_id: ID of the comparison
+            json_url: URL of JSON file in blob storage
+            excel_url: URL of Excel file in blob storage
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Build dynamic update query based on provided URLs
+                updates = []
+                params = []
+                
+                if json_url:
+                    updates.append("inplace_json_url = ?")
+                    params.append(json_url)
+                
+                if excel_url:
+                    updates.append("inplace_excel_url = ?")
+                    params.append(excel_url)
+                
+                if updates:
+                    updates.append("inplace_generated_at = GETDATE()")
+                    params.append(comparison_id)
+                    
+                    query = f"""
+                    UPDATE version_comparisons 
+                    SET {', '.join(updates)}
+                    WHERE id = ?
+                    """
+                    
+                    cursor.execute(query, *params)
+                    conn.commit()
+                    
+                    logger.info(f"Updated inplace outputs for comparison {comparison_id}")
+                    return cursor.rowcount > 0
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error updating inplace outputs: {e}")
+            return False
+    
+    def get_output_urls(self, comparison_id: int, generation_mode: str = None) -> Dict:
+        """
+        Get output URLs for a comparison
+        
+        Args:
+            comparison_id: ID of the comparison
+            generation_mode: Optional - 'delta' or 'inplace' to get specific mode
+            
+        Returns:
+            Dictionary with output URLs and timestamps
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if generation_mode == 'delta':
+                    query = """
+                    SELECT delta_json_url, delta_excel_url, delta_generated_at
+                    FROM version_comparisons 
+                    WHERE id = ?
+                    """
+                elif generation_mode == 'inplace':
+                    query = """
+                    SELECT inplace_json_url, inplace_excel_url, inplace_generated_at
+                    FROM version_comparisons 
+                    WHERE id = ?
+                    """
+                else:
+                    # Get all outputs
+                    query = """
+                    SELECT 
+                        delta_json_url, delta_excel_url, delta_generated_at,
+                        inplace_json_url, inplace_excel_url, inplace_generated_at
+                    FROM version_comparisons 
+                    WHERE id = ?
+                    """
+                
+                cursor.execute(query, comparison_id)
+                result = cursor.fetchone()
+                
+                if not result:
+                    return {}
+                
+                if generation_mode == 'delta':
+                    return {
+                        'json_url': result[0],
+                        'excel_url': result[1],
+                        'generated_at': result[2].isoformat() if result[2] else None
+                    }
+                elif generation_mode == 'inplace':
+                    return {
+                        'json_url': result[0],
+                        'excel_url': result[1],
+                        'generated_at': result[2].isoformat() if result[2] else None
+                    }
+                else:
+                    return {
+                        'delta': {
+                            'json_url': result[0],
+                            'excel_url': result[1],
+                            'generated_at': result[2].isoformat() if result[2] else None
+                        },
+                        'inplace': {
+                            'json_url': result[3],
+                            'excel_url': result[4],
+                            'generated_at': result[5].isoformat() if result[5] else None
+                        }
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Error getting output URLs: {e}")
+            return {}
+    
     def test_connection(self) -> bool:
         """
         Test database connection

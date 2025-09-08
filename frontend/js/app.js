@@ -64,6 +64,9 @@ function sttmApp() {
         // Generated files
         generatedFiles: [],
         
+        // Test step generation results with blob URLs
+        testStepResults: {},
+        
         // Workflow State
         workflow: {
             filesUploaded: false,
@@ -587,23 +590,44 @@ function sttmApp() {
                 const result = await response.json();
                 console.log('Test step generation result:', result);
                 
-                // Extract filename from the API response structure
-                let outputFile = result.saved_file_path;
+                // Store test step generation results with blob URLs
+                let outputFile = null;
                 
-                // If we have a full path, extract just the filename
-                if (outputFile && outputFile.includes('/')) {
-                    outputFile = outputFile.split('/').pop();
-                } else if (outputFile && outputFile.includes('\\')) {
-                    outputFile = outputFile.split('\\').pop();
-                }
-                
-                // Store generated file info only if we have a filename
-                if (outputFile) {
-                    this.generatedFiles.push({
-                        mode: mode,
-                        file: outputFile,
-                        timestamp: new Date().toISOString()
-                    });
+                if (result.blob_urls) {
+                    // Store the blob URLs for this generation mode
+                    if (!this.testStepResults) {
+                        this.testStepResults = {};
+                    }
+                    
+                    this.testStepResults[mode] = {
+                        json_url: result.blob_urls.json_url,
+                        excel_url: result.blob_urls.excel_url,
+                        report_id: result.report_id,
+                        timestamp: new Date().toISOString(),
+                        summary: result.summary
+                    };
+                    
+                    // Extract filename for display
+                    if (result.blob_urls.excel_url) {
+                        outputFile = result.blob_urls.excel_url.split('/').pop();
+                    } else if (result.report_id) {
+                        outputFile = `${result.report_id}.xlsx`;
+                    }
+                    
+                    // Store generated file info for the files list
+                    if (outputFile) {
+                        this.generatedFiles.push({
+                            mode: mode,
+                            file: outputFile,
+                            timestamp: new Date().toISOString(),
+                            blob_urls: result.blob_urls
+                        });
+                    }
+                } else {
+                    // Fallback for cases without blob URLs
+                    if (result.report_id) {
+                        outputFile = `${result.report_id}.xlsx`;
+                    }
                 }
                 
                 // Update workflow state
@@ -664,6 +688,22 @@ function sttmApp() {
                 console.error('Download error:', error);
                 this.showError('Failed to download JSON report');
             }
+        },
+        
+        /**
+         * Get API URL for test step Excel file
+         */
+        getTestStepExcelUrl(mode) {
+            if (!this.selectedComparison) return '#';
+            return `${this.apiBaseUrl}/api/test-steps/${this.selectedComparison.comparison_id}/${mode}/excel`;
+        },
+        
+        /**
+         * Get API URL for test step JSON file
+         */
+        getTestStepJsonUrl(mode) {
+            if (!this.selectedComparison) return '#';
+            return `${this.apiBaseUrl}/api/test-steps/${this.selectedComparison.comparison_id}/${mode}/json`;
         },
         
         /**

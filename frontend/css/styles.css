@@ -1302,3 +1302,29 @@ main {
         border: 1px solid #ccc;
     }
 }
+
+/* Test Step Generation Reports Styles */
+.test-step-reports {
+    margin-bottom: var(--spacing-4);
+}
+
+.test-step-reports:last-child {
+    margin-bottom: 0;
+}
+
+.generation-mode {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: var(--spacing-2);
+    color: var(--primary-color);
+}
+
+.generation-summary {
+    margin-top: var(--spacing-2);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.generation-summary small {
+    font-size: 0.875rem;
+}

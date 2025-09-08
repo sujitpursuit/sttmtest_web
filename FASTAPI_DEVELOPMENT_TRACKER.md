@@ -182,13 +182,226 @@ uvicorn api.main:app --reload --port 8004
 
 ### **Access API Documentation:**
 ```
-http://localhost:8004/docs      # Swagger UI
-http://localhost:8004/redoc     # ReDoc UI
+http://localhost:8000/docs      # Swagger UI
+http://localhost:8000/redoc     # ReDoc UI
 ```
 
 ### **Test with Postman:**
 ```
-Base URL: http://localhost:8004
+Base URL: http://localhost:8000
+```
+
+---
+
+## 🗄️ Blob Storage Integration
+
+### **Test Step File Serving Endpoints**
+
+#### **GET /api/test-steps/{comparison_id}/{generation_mode}/excel**
+Serves Excel files from Azure Blob Storage with authentication.
+
+**Request:**
+```http
+GET /api/test-steps/10/delta/excel HTTP/1.1
+Host: localhost:8000
+```
+
+**Path Parameters:**
+- `comparison_id` (integer): ID of the comparison
+- `generation_mode` (string): "delta" or "in-place"
+
+**Response (Success - 200):**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename=test_steps_delta_10.xlsx
+Content-Length: 6518
+
+[Binary Excel file content]
+```
+
+**Response (Not Found - 404):**
+```http
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+
+{
+  "detail": "Excel file not found for comparison 10 (delta mode)"
+}
+```
+
+**Response (Server Error - 500):**
+```http
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+
+{
+  "detail": "Failed to serve Excel file: [error details]"
+}
+```
+
+#### **GET /api/test-steps/{comparison_id}/{generation_mode}/json**
+Serves JSON files from Azure Blob Storage with authentication.
+
+**Request:**
+```http
+GET /api/test-steps/10/delta/json HTTP/1.1
+Host: localhost:8000
+```
+
+**Path Parameters:**
+- `comparison_id` (integer): ID of the comparison
+- `generation_mode` (string): "delta" or "in-place"
+
+**Response (Success - 200):**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Disposition: attachment; filename=test_steps_delta_10.json
+Content-Length: 1150
+
+{
+  "report_metadata": {
+    "report_id": "comparison_10_delta",
+    "report_type": "test_steps",
+    "created_timestamp": "2025-09-08T14:10:14.767269",
+    "file_size_bytes": 1436
+  },
+  "report_data": {
+    "generation_mode": "delta",
+    "generated_steps": [
+      {
+        "step_number": 35,
+        "action": "ADD",
+        "action_description": "Verify MiddleName  2 field has been removed from Vendor system",
+        "test_case_id": "Unknown",
+        "sttm_tab_name": "Unknown",
+        "notes": "Verification step for deleted field: MiddleName  2",
+        "generated_timestamp": "2025-09-08T14:10:12.848701",
+        "field_name": null,
+        "change_type": null,
+        "expected_result": "MiddleName  2 field should not exist in target system"
+      }
+    ],
+    "summary": {
+      "generation_timestamp": "2025-09-08T14:10:12.848701",
+      "total_steps_generated": 1,
+      "action_breakdown": {
+        "ADD": 1,
+        "MODIFY": 0,
+        "DELETE": 0
+      },
+      "step_types": {
+        "deleted_field_verification": 1,
+        "added_field_validation": 0,
+        "modified_field_update": 0,
+        "deletion_flags": 0
+      }
+    },
+    "metadata": {
+      "generation_timestamp": "2025-09-08T14:10:12.844703",
+      "generation_mode": "delta",
+      "duration_seconds": 0.003998,
+      "total_test_cases_processed": 1,
+      "total_steps_generated": 1
+    }
+  }
+}
+```
+
+**Response (Not Found - 404):**
+```http
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+
+{
+  "detail": "JSON file not found for comparison 10 (delta mode)"
+}
+```
+
+**Response (Server Error - 500):**
+```http
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+
+{
+  "detail": "Failed to serve JSON file: [error details]"
+}
+```
+
+### **Updated Test Step Generation Response**
+
+#### **POST /api/generate/test-steps-from-comparison**
+
+**Response (Updated for Blob-First Architecture):**
+```json
+{
+  "success": true,
+  "generation_mode": "delta",
+  "generated_steps": [
+    {
+      "step_number": 35,
+      "action": "ADD",
+      "action_description": "Verify MiddleName  2 field has been removed from Vendor system",
+      "test_case_id": "Unknown",
+      "sttm_tab_name": "Unknown",
+      "notes": "Verification step for deleted field: MiddleName  2",
+      "generated_timestamp": "2025-09-08T14:10:12.848701",
+      "field_name": null,
+      "change_type": null,
+      "expected_result": "MiddleName  2 field should not exist in target system"
+    }
+  ],
+  "summary": {
+    "generation_timestamp": "2025-09-08T14:10:12.848701",
+    "total_steps_generated": 1,
+    "action_breakdown": {
+      "ADD": 1,
+      "MODIFY": 0,
+      "DELETE": 0
+    },
+    "step_types": {
+      "deleted_field_verification": 1,
+      "added_field_validation": 0,
+      "modified_field_update": 0,
+      "deletion_flags": 0
+    }
+  },
+  "metadata": {
+    "generation_timestamp": "2025-09-08T14:10:12.844703",
+    "generation_mode": "delta",
+    "duration_seconds": 0.003998,
+    "total_test_cases_processed": 1,
+    "total_steps_generated": 1
+  },
+  "report_id": "comparison_10_delta",
+  "blob_urls": {
+    "json_url": "https://stexceldifffiles.blob.core.windows.net/output-files/comparison_10/delta/test_steps_delta_20250908_141014.json",
+    "excel_url": "https://stexceldifffiles.blob.core.windows.net/output-files/comparison_10/delta/test_steps_delta_20250908_141014.xlsx"
+  },
+  "comparison_info": {
+    "comparison_id": 10,
+    "comparison_title": "Version comparison title",
+    "file_name": "Friendly file name"
+  }
+}
+```
+
+**Key Changes from Stage 1:**
+- ✅ **Removed**: `saved_file_path` (no longer returns local file paths)
+- ✅ **Added**: `blob_urls` object with direct Azure Blob Storage URLs
+- ✅ **Note**: Files are temporarily created locally for processing but immediately uploaded to blob and local copies are deleted
+
+### **Database Schema Updates**
+
+**Added columns to `version_comparisons` table:**
+```sql
+ALTER TABLE version_comparisons ADD delta_json_url NVARCHAR(500) NULL;
+ALTER TABLE version_comparisons ADD delta_excel_url NVARCHAR(500) NULL;
+ALTER TABLE version_comparisons ADD delta_generated_at DATETIME NULL;
+ALTER TABLE version_comparisons ADD inplace_json_url NVARCHAR(500) NULL;
+ALTER TABLE version_comparisons ADD inplace_excel_url NVARCHAR(500) NULL;
+ALTER TABLE version_comparisons ADD inplace_generated_at DATETIME NULL;
 ```
 
 ---
