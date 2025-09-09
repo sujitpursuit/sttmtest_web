@@ -274,3 +274,106 @@ class OutputBlobService:
         except Exception as e:
             logger.error(f"Failed to download blob {blob_name}: {e}")
             return None
+    
+    def upload_impact_analysis_reports(
+        self, 
+        comparison_id: int,
+        html_file_path: str,
+        json_file_path: str
+    ) -> Dict[str, Optional[str]]:
+        """
+        Upload impact analysis reports to Azure Blob Storage
+        Uses the same container as test step outputs but different folder structure
+        
+        Args:
+            comparison_id: ID of the comparison
+            html_file_path: Path to the HTML report file
+            json_file_path: Path to the JSON report file
+            
+        Returns:
+            Dictionary with blob URLs for html_url and json_url
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create blob names with proper folder structure
+        # Structure: output-files/comparison_{id}/impact/impact_analysis_{timestamp}.html
+        html_blob_name = f"comparison_{comparison_id}/impact/impact_analysis_{timestamp}.html"
+        json_blob_name = f"comparison_{comparison_id}/impact/impact_analysis_{timestamp}.json"
+        
+        result = {
+            'html_url': None,
+            'json_url': None
+        }
+        
+        try:
+            # Upload HTML file
+            if html_file_path and os.path.exists(html_file_path):
+                result['html_url'] = self._upload_file(
+                    html_file_path, 
+                    html_blob_name, 
+                    'text/html; charset=utf-8'
+                )
+                if result['html_url']:
+                    logger.info(f"Uploaded impact analysis HTML: {html_blob_name}")
+            
+            # Upload JSON file
+            if json_file_path and os.path.exists(json_file_path):
+                result['json_url'] = self._upload_file(
+                    json_file_path, 
+                    json_blob_name, 
+                    'application/json; charset=utf-8'
+                )
+                if result['json_url']:
+                    logger.info(f"Uploaded impact analysis JSON: {json_blob_name}")
+            
+            # Log summary
+            uploaded_files = []
+            if result['html_url']: uploaded_files.append('HTML')
+            if result['json_url']: uploaded_files.append('JSON')
+            
+            if uploaded_files:
+                logger.info(f"Successfully uploaded impact analysis reports for comparison {comparison_id}: {', '.join(uploaded_files)}")
+            else:
+                logger.warning(f"No impact analysis reports uploaded for comparison {comparison_id}")
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to upload impact analysis reports for comparison {comparison_id}: {e}")
+            return result
+    
+    def download_impact_analysis_report(self, blob_url: str, file_type: str) -> Optional[bytes]:
+        """
+        Download impact analysis report content from blob storage
+        
+        Args:
+            blob_url: URL of the blob to download
+            file_type: 'html' or 'json' (for logging purposes)
+            
+        Returns:
+            File content as bytes, None if failed
+        """
+        try:
+            # Extract blob name from URL
+            if f"/{self.container_name}/" in blob_url:
+                blob_name = blob_url.split(f"/{self.container_name}/")[-1].split('?')[0]  # Remove SAS token if present
+            else:
+                logger.error(f"Invalid blob URL format: {blob_url}")
+                return None
+            
+            # Get blob client
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=blob_name
+            )
+            
+            # Download blob content
+            blob_data = blob_client.download_blob()
+            content = blob_data.readall()
+            
+            logger.info(f"Downloaded impact analysis {file_type} report: {len(content)} bytes from {blob_name}")
+            return content
+            
+        except Exception as e:
+            logger.error(f"Failed to download impact analysis {file_type} report from {blob_url}: {e}")
+            return None

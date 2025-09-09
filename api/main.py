@@ -37,7 +37,7 @@ from api.services.qtest_blob_reader_service import QTestBlobReaderService
 from api.middleware.logging import EnhancedRequestLoggingMiddleware
 from api.models.api_models import (
     HealthResponse, FileListResponse, ValidationRequest, ValidationResponse,
-    CombinedValidationResponse, ErrorResponse, FileInfo, ImpactAnalysisRequest,
+    CombinedValidationResponse, ErrorResponse, FileInfo,
     TestStepGenerationResponse, ReportListResponse,
     StorageStatsResponse, ConfigSaveRequest, SavedConfigListResponse,
     DetailedHealthResponse
@@ -644,43 +644,9 @@ async def validate_both_files(
         )
 
 
-@app.post("/api/analyze-impact")
-async def analyze_impact(
-    request: ImpactAnalysisRequest,
-    analysis_service: AnalysisService = Depends(get_analysis_service),
-    optimize_response: bool = True
-):
-    """Run complete impact analysis between STTM and QTEST files"""
-    try:
-        logger.info(f"Starting impact analysis: {request.sttm_file} + {request.qtest_file}")
-        
-        # Run analysis using existing CLI logic
-        result = analysis_service.run_impact_analysis(
-            sttm_file=request.sttm_file,
-            qtest_file=request.qtest_file,
-            config=request.config.dict() if request.config else None,
-            include_html_in_response=request.include_html_in_response
-        )
-        
-        # Optimize response for large reports
-        if optimize_response:
-            return response_optimizer.optimize_response(result, compression=True)
-        else:
-            return ImpactAnalysisResponse(**result)
-        
-    except FileNotFoundError:
-        raise  # Re-raise with proper HTTP status
-    except ConfigurationError:
-        raise  # Re-raise with proper HTTP status  
-    except AnalysisError:
-        raise  # Re-raise with proper HTTP status
-    except Exception as e:
-        logger.error(f"Unexpected analysis error: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Analysis failed unexpectedly: {str(e)}"
-        )
-
+# NOTE: /api/analyze-impact endpoint removed - not used by frontend
+# Frontend uses /api/analyze-impact-from-comparison exclusively
+# Legacy endpoint for file uploads is no longer needed
 
 @app.get("/api/config/presets", response_model=ConfigPresetsResponse)
 async def get_config_presets(
@@ -1149,6 +1115,52 @@ async def analyze_impact_from_comparison(
                 'qtest_file': qtest_filename
             }
             
+            # PHASE 2: Upload impact analysis reports to blob storage
+            try:
+                # Get the local file paths from report_links
+                if 'report_links' in result and result['report_links']:
+                    html_file_path = result['report_links'].get('html_file')
+                    json_file_path = result['report_links'].get('json_file')
+                    
+                    if html_file_path or json_file_path:
+                        # Initialize blob service for impact reports
+                        from api.services.output_blob_service import OutputBlobService
+                        output_blob_service = OutputBlobService()
+                        
+                        # Upload to blob storage
+                        blob_urls = output_blob_service.upload_impact_analysis_reports(
+                            comparison_id=comparison_id,
+                            html_file_path=html_file_path,
+                            json_file_path=json_file_path
+                        )
+                        
+                        # Update database with blob URLs
+                        if blob_urls['html_url'] or blob_urls['json_url']:
+                            tracking_service.update_impact_analysis_urls(
+                                comparison_id=comparison_id,
+                                html_blob_url=blob_urls.get('html_url'),
+                                json_blob_url=blob_urls.get('json_url')
+                            )
+                            
+                            # Update response with API endpoints instead of local file paths
+                            result['report_links']['html_url'] = f"/api/impact-reports/{comparison_id}/html" if blob_urls['html_url'] else None
+                            result['report_links']['json_url'] = f"/api/impact-reports/{comparison_id}/json" if blob_urls['json_url'] else None
+                            result['report_links']['blob_urls'] = blob_urls
+                            
+                            logger.info(f"Updated impact analysis report URLs for comparison {comparison_id}")
+                        
+                        # Clean up local report files after upload
+                        if html_file_path and os.path.exists(html_file_path):
+                            os.unlink(html_file_path)
+                            logger.info(f"Cleaned up local HTML file: {html_file_path}")
+                        if json_file_path and os.path.exists(json_file_path):
+                            os.unlink(json_file_path)
+                            logger.info(f"Cleaned up local JSON file: {json_file_path}")
+                    
+            except Exception as e:
+                logger.error(f"Failed to upload impact analysis reports to blob storage: {e}")
+                # Continue with local file serving if blob upload fails
+            
             # Optimize response for large reports (same as original endpoint)
             if optimize_response:
                 return response_optimizer.optimize_response(result, compression=True)
@@ -1157,7 +1169,6 @@ async def analyze_impact_from_comparison(
             
         finally:
             # Cleanup temporary files
-            import os
             if os.path.exists(temp_sttm_path):
                 os.unlink(temp_sttm_path)
             if sttm_file_path.exists():
@@ -1461,7 +1472,6 @@ async def generate_test_steps_from_comparison(
             
         finally:
             # Cleanup temporary files
-            import os
             if os.path.exists(temp_sttm_path):
                 os.unlink(temp_sttm_path)
             if sttm_file_path.exists():
@@ -1494,8 +1504,11 @@ async def serve_test_step_excel(
     try:
         logger.info(f"Serving test step Excel for comparison {comparison_id}, mode: {generation_mode}")
         
+        # Convert URL parameter to database format
+        db_mode = generation_mode.replace('-', '')  # "in-place" -> "inplace"
+        
         # Get blob URLs from database
-        urls = tracking_service.get_output_urls(comparison_id, generation_mode)
+        urls = tracking_service.get_output_urls(comparison_id, db_mode)
         if not urls or not urls.get('excel_url'):
             raise HTTPException(
                 status_code=404,
@@ -1547,8 +1560,11 @@ async def serve_test_step_json(
     try:
         logger.info(f"Serving test step JSON for comparison {comparison_id}, mode: {generation_mode}")
         
+        # Convert URL parameter to database format
+        db_mode = generation_mode.replace('-', '')  # "in-place" -> "inplace"
+        
         # Get blob URLs from database
-        urls = tracking_service.get_output_urls(comparison_id, generation_mode)
+        urls = tracking_service.get_output_urls(comparison_id, db_mode)
         if not urls or not urls.get('json_url'):
             raise HTTPException(
                 status_code=404,
@@ -1587,6 +1603,116 @@ async def serve_test_step_json(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to serve JSON file: {str(e)}"
+        )
+
+
+# ============================
+# IMPACT ANALYSIS REPORT ENDPOINTS
+# ============================
+
+@app.get("/api/impact-reports/{comparison_id}/html")
+async def serve_impact_html_report(
+    comparison_id: int,
+    tracking_service: VersionTrackingService = Depends(get_version_tracking_service)
+):
+    """
+    Serve impact analysis HTML report from Azure Blob Storage
+    """
+    try:
+        logger.info(f"Serving impact analysis HTML report for comparison {comparison_id}")
+        
+        # Get blob URLs from database
+        blob_urls = tracking_service.get_impact_analysis_urls(comparison_id)
+        html_blob_url = blob_urls.get('html_url')
+        
+        if not html_blob_url:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No impact analysis HTML report found for comparison {comparison_id}"
+            )
+        
+        # Download from blob storage
+        from api.services.output_blob_service import OutputBlobService
+        output_blob_service = OutputBlobService()
+        
+        file_content = output_blob_service.download_impact_analysis_report(html_blob_url, 'html')
+        
+        if not file_content:
+            raise HTTPException(
+                status_code=404,
+                detail="HTML report not found in blob storage"
+            )
+        
+        return Response(
+            content=file_content,
+            media_type="text/html; charset=utf-8"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving impact analysis HTML report: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to serve HTML report: {str(e)}"
+        )
+
+
+@app.get("/api/impact-reports/{comparison_id}/json")
+async def serve_impact_json_report(
+    comparison_id: int,
+    tracking_service: VersionTrackingService = Depends(get_version_tracking_service)
+):
+    """
+    Serve impact analysis JSON report from Azure Blob Storage
+    """
+    try:
+        logger.info(f"Serving impact analysis JSON report for comparison {comparison_id}")
+        
+        # Get blob URLs from database
+        blob_urls = tracking_service.get_impact_analysis_urls(comparison_id)
+        json_blob_url = blob_urls.get('json_url')
+        
+        if not json_blob_url:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No impact analysis JSON report found for comparison {comparison_id}"
+            )
+        
+        # Download from blob storage
+        from api.services.output_blob_service import OutputBlobService
+        output_blob_service = OutputBlobService()
+        
+        file_content = output_blob_service.download_impact_analysis_report(json_blob_url, 'json')
+        
+        if not file_content:
+            raise HTTPException(
+                status_code=404,
+                detail="JSON report not found in blob storage"
+            )
+        
+        # Generate filename with timestamp
+        timestamp = blob_urls.get('timestamp', 'unknown')
+        if timestamp and timestamp != 'unknown':
+            timestamp_str = timestamp.replace(':', '').replace('-', '').replace('T', '_')[:15]  # Format: YYYYMMDD_HHMMSS
+        else:
+            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+        filename = f"impact_analysis_{comparison_id}_{timestamp_str}.json"
+        
+        return Response(
+            content=file_content,
+            media_type="application/json; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving impact analysis JSON report: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to serve JSON report: {str(e)}"
         )
 
 

@@ -116,6 +116,9 @@ class VersionTrackingService:
                     vc.comparison_taken_at,
                     vc.created_at,
                     vc.user_notes,
+                    -- Version comparison info
+                    vc.file1_version_id,
+                    vc.file2_version_id,
                     -- From version details
                     fv1.id as from_version_id,
                     fv1.sequence_number as from_sequence,
@@ -411,3 +414,102 @@ class VersionTrackingService:
         except Exception as e:
             logger.error(f"Database connection test failed: {e}")
             return False
+    
+    def update_impact_analysis_urls(
+        self,
+        comparison_id: int,
+        html_blob_url: Optional[str] = None,
+        json_blob_url: Optional[str] = None
+    ) -> bool:
+        """
+        Update impact analysis blob URLs in the database
+        
+        Args:
+            comparison_id: ID of the comparison
+            html_blob_url: Blob URL for HTML report (optional)
+            json_blob_url: Blob URL for JSON report (optional)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not html_blob_url and not json_blob_url:
+            logger.warning(f"No blob URLs provided for comparison {comparison_id}")
+            return False
+            
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Build dynamic UPDATE query based on provided URLs
+                update_parts = []
+                params = []
+                
+                if html_blob_url:
+                    update_parts.append("impact_html_blob_url = ?")
+                    params.append(html_blob_url)
+                
+                if json_blob_url:
+                    update_parts.append("impact_json_blob_url = ?")
+                    params.append(json_blob_url)
+                
+                # Always update timestamp
+                update_parts.append("impact_analysis_timestamp = GETDATE()")
+                
+                # Add comparison_id for WHERE clause
+                params.append(comparison_id)
+                
+                update_sql = f"""
+                    UPDATE version_comparisons 
+                    SET {', '.join(update_parts)}
+                    WHERE id = ?
+                """
+                
+                cursor.execute(update_sql, params)
+                
+                if cursor.rowcount > 0:
+                    conn.commit()
+                    logger.info(f"Updated impact analysis URLs for comparison {comparison_id}")
+                    return True
+                else:
+                    logger.warning(f"No comparison found with ID {comparison_id}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Failed to update impact analysis URLs for comparison {comparison_id}: {e}")
+            return False
+    
+    def get_impact_analysis_urls(self, comparison_id: int) -> Dict[str, Optional[str]]:
+        """
+        Get impact analysis blob URLs from database
+        
+        Args:
+            comparison_id: ID of the comparison
+            
+        Returns:
+            Dictionary with html_url, json_url, and timestamp
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT impact_html_blob_url, impact_json_blob_url, impact_analysis_timestamp
+                    FROM version_comparisons
+                    WHERE id = ?
+                """, (comparison_id,))
+                
+                result = cursor.fetchone()
+                
+                if result:
+                    return {
+                        'html_url': result[0],
+                        'json_url': result[1],
+                        'timestamp': result[2].isoformat() if result[2] else None
+                    }
+                else:
+                    logger.warning(f"No comparison found with ID {comparison_id}")
+                    return {'html_url': None, 'json_url': None, 'timestamp': None}
+                    
+        except Exception as e:
+            logger.error(f"Failed to get impact analysis URLs for comparison {comparison_id}: {e}")
+            return {'html_url': None, 'json_url': None, 'timestamp': None}

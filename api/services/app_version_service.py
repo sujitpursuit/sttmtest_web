@@ -9,7 +9,7 @@ from pathlib import Path
 
 class AppVersionService:
     def __init__(self):
-        self.version = "1.0.4"  # FIXED: Azure Blob ContentSettings error
+        self.version = "1.0.6"  # FIXED: Test step serving endpoints (in-place mode)
         self.build_date = "2025-09-08"
         self.build_time = datetime.now().strftime("%H:%M:%S")
         
